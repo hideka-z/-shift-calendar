@@ -53,10 +53,6 @@
     <section id="shareHeader" class="share-header share-only" hidden>
       <h1 id="shareTitle"></h1>
       <p id="shareMeta"></p>
-      <div class="legend" aria-label="勤務区分の凡例">
-        <span><svg><use href="#icon-sunrise"/></svg>午前</span>
-        <span><svg><use href="#icon-sun"/></svg>午後</span>
-      </div>
     </section>
 
     <section class="month-nav" aria-label="表示月">
@@ -90,9 +86,13 @@
   <dialog id="dayDialog" class="sheet-dialog">
     <form method="dialog" class="sheet">
       <header class="sheet-header">
-        <div>
+        <div class="day-heading">
           <p class="eyebrow">勤務入力</p>
-          <h2 id="selectedDateLabel"></h2>
+          <div class="day-date-nav">
+            <button id="prevDay" class="date-button" type="button" aria-label="前の日">‹</button>
+            <h2 id="selectedDateLabel"></h2>
+            <button id="nextDay" class="date-button" type="button" aria-label="次の日">›</button>
+          </div>
         </div>
         <button class="icon-button" value="cancel" aria-label="閉じる">
           <svg><use href="#icon-close"/></svg>
@@ -136,6 +136,12 @@
       <div class="settings-section">
         <label for="settingsProjectSelect">プロジェクト</label>
         <select id="settingsProjectSelect"></select>
+        <div class="project-edit-form">
+          <input id="editProjectNameInput" type="text" maxlength="30" aria-label="選択中のプロジェクト名">
+          <button id="renameProject" class="button" type="button">変更</button>
+          <button id="deleteProject" class="button button-danger" type="button">削除</button>
+        </div>
+        <label class="new-project-label" for="projectNameInput">新しいプロジェクト</label>
         <div class="inline-form">
           <input id="projectNameInput" type="text" maxlength="30" placeholder="新しいプロジェクト名">
           <button id="addProject" class="button" type="button">追加</button>

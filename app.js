@@ -8,9 +8,10 @@
   const elements = {
     app: $('#app'), projectSelect: $('#projectSelect'), settingsProjectSelect: $('#settingsProjectSelect'),
     monthLabel: $('#monthLabel'), calendarGrid: $('#calendarGrid'), prevMonth: $('#prevMonth'), nextMonth: $('#nextMonth'),
-    dayDialog: $('#dayDialog'), selectedDateLabel: $('#selectedDateLabel'), assignmentList: $('#assignmentList'),
+    dayDialog: $('#dayDialog'), selectedDateLabel: $('#selectedDateLabel'), prevDay: $('#prevDay'), nextDay: $('#nextDay'), assignmentList: $('#assignmentList'),
     noAssignments: $('#noAssignments'), memberSelect: $('#memberSelect'), slotSelect: $('#slotSelect'), addAssignment: $('#addAssignment'),
     settingsDialog: $('#settingsDialog'), openSettings: $('#openSettings'), projectNameInput: $('#projectNameInput'),
+    editProjectNameInput: $('#editProjectNameInput'), renameProject: $('#renameProject'), deleteProject: $('#deleteProject'),
     addProject: $('#addProject'), memberList: $('#memberList'), memberNameInput: $('#memberNameInput'), addMember: $('#addMember'),
     openShare: $('#openShare'), closeShare: $('#closeShare'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
     backupButton: $('#backupButton'), restoreButton: $('#restoreButton'), restoreInput: $('#restoreInput'), toast: $('#toast')
@@ -198,7 +199,10 @@
       if (!outside && holidays.has(key)) classes.push('is-holiday');
       if (!outside && isToday) classes.push('is-today');
 
-      const validAssignments = outside ? [] : (project.shifts[key] || []).filter(item => memberMap.has(item.memberId));
+      const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
+      const validAssignments = outside ? [] : (project.shifts[key] || [])
+        .filter(item => memberMap.has(item.memberId))
+        .sort((a, b) => memberOrder.get(a.memberId) - memberOrder.get(b.memberId));
       const visible = validAssignments.slice(0, 3);
       const entries = visible.map(item => `<span class="shift-entry">${iconForSlot(item.slot)}<span class="shift-name">${escapeHtml(memberMap.get(item.memberId))}</span></span>`).join('');
       const more = validAssignments.length > 3 ? `<span class="more-count">ほか${validAssignments.length - 3}名</span>` : '';
@@ -225,7 +229,10 @@
     elements.selectedDateLabel.textContent = `${date.getMonth() + 1}月${date.getDate()}日（${week[date.getDay()]}）`;
     const assignments = project.shifts[selectedDateKey] || [];
     const memberMap = new Map(project.members.map(member => [member.id, member.name]));
-    const valid = assignments.filter(item => memberMap.has(item.memberId));
+    const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
+    const valid = assignments
+      .filter(item => memberMap.has(item.memberId))
+      .sort((a, b) => memberOrder.get(a.memberId) - memberOrder.get(b.memberId));
     elements.assignmentList.innerHTML = valid.map(item => `
       <div class="assignment-row" data-member-id="${escapeHtml(item.memberId)}">
         <span class="assignment-name">${escapeHtml(memberMap.get(item.memberId))}</span>
@@ -277,12 +284,72 @@
     renderCalendar();
   }
 
+  function moveSelectedDay(amount) {
+    const current = new Date(`${selectedDateKey}T00:00:00`);
+    const next = new Date(current.getFullYear(), current.getMonth(), current.getDate() + amount);
+    selectedDateKey = dateKey(next.getFullYear(), next.getMonth(), next.getDate());
+    if (viewDate.getFullYear() !== next.getFullYear() || viewDate.getMonth() !== next.getMonth()) {
+      viewDate = new Date(next.getFullYear(), next.getMonth(), 1);
+    }
+    renderDayDialog();
+    renderCalendar();
+  }
+
   function renderSettings() {
     renderProjectOptions();
     const project = selectedProject();
+    elements.editProjectNameInput.value = project.name;
+    elements.deleteProject.disabled = state.projects.length === 1;
     elements.memberList.innerHTML = project.members.length
-      ? project.members.map(member => `<div class="member-item">${escapeHtml(member.name)}</div>`).join('')
+      ? project.members.map((member, index) => `
+        <div class="member-item" data-member-id="${escapeHtml(member.id)}">
+          <input class="member-name-edit" type="text" maxlength="12" value="${escapeHtml(member.name)}" aria-label="${escapeHtml(member.name)}の表示名">
+          <button class="button member-save" type="button">変更</button>
+          <button class="button member-move member-up" type="button" aria-label="${escapeHtml(member.name)}を上へ移動" ${index === 0 ? 'disabled' : ''}>↑</button>
+          <button class="button member-move member-down" type="button" aria-label="${escapeHtml(member.name)}を下へ移動" ${index === project.members.length - 1 ? 'disabled' : ''}>↓</button>
+        </div>`).join('')
       : '<p class="empty-message">メンバーはまだ登録されていません</p>';
+  }
+
+  function renameSelectedProject() {
+    const name = elements.editProjectNameInput.value.trim();
+    if (!name) return showToast('プロジェクト名を入力してください');
+    selectedProject().name = name;
+    saveState('プロジェクト名を変更しました');
+    render();
+  }
+
+  function deleteSelectedProject() {
+    if (state.projects.length === 1) return showToast('最後のプロジェクトは削除できません');
+    const project = selectedProject();
+    if (!confirm(`「${project.name}」と勤務情報を削除しますか？`)) return;
+    const index = state.projects.findIndex(item => item.id === project.id);
+    state.projects.splice(index, 1);
+    state.selectedProjectId = state.projects[Math.min(index, state.projects.length - 1)].id;
+    saveState('プロジェクトを削除しました');
+    render();
+  }
+
+  function updateMember(memberId, action) {
+    const project = selectedProject();
+    const index = project.members.findIndex(member => member.id === memberId);
+    if (index < 0) return;
+
+    if (action === 'save') {
+      const row = elements.memberList.querySelector(`[data-member-id="${CSS.escape(memberId)}"]`);
+      const name = row.querySelector('.member-name-edit').value.trim();
+      if (!name) return showToast('表示する名前を入力してください');
+      if (project.members.some(member => member.id !== memberId && member.name === name)) return showToast('同じ名前が登録されています');
+      project.members[index].name = name;
+      saveState('メンバー名を変更しました');
+    } else {
+      const nextIndex = action === 'up' ? index - 1 : index + 1;
+      if (nextIndex < 0 || nextIndex >= project.members.length) return;
+      [project.members[index], project.members[nextIndex]] = [project.members[nextIndex], project.members[index]];
+      saveState('メンバーの順番を変更しました');
+    }
+    renderSettings();
+    renderCalendar();
   }
 
   function addProject() {
@@ -374,10 +441,21 @@
   elements.settingsProjectSelect.addEventListener('change', event => setProject(event.target.value));
   elements.openSettings.addEventListener('click', () => { renderSettings(); elements.settingsDialog.showModal(); });
   elements.addProject.addEventListener('click', addProject);
+  elements.renameProject.addEventListener('click', renameSelectedProject);
+  elements.deleteProject.addEventListener('click', deleteSelectedProject);
   elements.addMember.addEventListener('click', addMember);
+  elements.memberList.addEventListener('click', event => {
+    const row = event.target.closest('.member-item');
+    if (!row) return;
+    if (event.target.closest('.member-save')) updateMember(row.dataset.memberId, 'save');
+    if (event.target.closest('.member-up')) updateMember(row.dataset.memberId, 'up');
+    if (event.target.closest('.member-down')) updateMember(row.dataset.memberId, 'down');
+  });
   elements.projectNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addProject(); } });
   elements.memberNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addMember(); } });
   elements.addAssignment.addEventListener('click', addAssignment);
+  elements.prevDay.addEventListener('click', () => moveSelectedDay(-1));
+  elements.nextDay.addEventListener('click', () => moveSelectedDay(1));
   elements.openShare.addEventListener('click', () => toggleShare(true));
   elements.closeShare.addEventListener('click', () => toggleShare(false));
   elements.backupButton.addEventListener('click', backup);
