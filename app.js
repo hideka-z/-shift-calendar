@@ -11,7 +11,7 @@
     dayDialog: $('#dayDialog'), selectedDateLabel: $('#selectedDateLabel'), prevDay: $('#prevDay'), nextDay: $('#nextDay'), assignmentList: $('#assignmentList'),
     noAssignments: $('#noAssignments'), memberSelect: $('#memberSelect'), slotSelect: $('#slotSelect'), addAssignment: $('#addAssignment'),
     settingsDialog: $('#settingsDialog'), openSettings: $('#openSettings'), projectNameInput: $('#projectNameInput'),
-    editProjectNameInput: $('#editProjectNameInput'), renameProject: $('#renameProject'), deleteProject: $('#deleteProject'),
+    projectItem: $('#projectItem'), projectNameDisplay: $('#projectNameDisplay'), editProjectNameInput: $('#editProjectNameInput'), deleteProject: $('#deleteProject'),
     addProject: $('#addProject'), memberList: $('#memberList'), memberNameInput: $('#memberNameInput'), addMember: $('#addMember'),
     openShare: $('#openShare'), closeShare: $('#closeShare'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
     backupButton: $('#backupButton'), restoreButton: $('#restoreButton'), restoreInput: $('#restoreInput'), toast: $('#toast')
@@ -23,6 +23,7 @@
   let selectedDateKey = null;
   let shareMode = false;
   let toastTimer = null;
+  let openSwipeRow = null;
 
   function uid(prefix) {
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -298,25 +299,48 @@
   function renderSettings() {
     renderProjectOptions();
     const project = selectedProject();
+    elements.projectNameDisplay.textContent = project.name;
     elements.editProjectNameInput.value = project.name;
     elements.deleteProject.disabled = state.projects.length === 1;
+    elements.projectItem.classList.remove('is-open', 'is-editing');
     elements.memberList.innerHTML = project.members.length
-      ? project.members.map((member, index) => `
-        <div class="member-item" data-member-id="${escapeHtml(member.id)}">
-          <input class="member-name-edit" type="text" maxlength="12" value="${escapeHtml(member.name)}" aria-label="${escapeHtml(member.name)}の表示名">
-          <button class="button member-save" type="button">変更</button>
-          <button class="button member-move member-up" type="button" aria-label="${escapeHtml(member.name)}を上へ移動" ${index === 0 ? 'disabled' : ''}>↑</button>
-          <button class="button member-move member-down" type="button" aria-label="${escapeHtml(member.name)}を下へ移動" ${index === project.members.length - 1 ? 'disabled' : ''}>↓</button>
+      ? project.members.map(member => `
+        <div class="swipe-row member-item" data-member-id="${escapeHtml(member.id)}">
+          <div class="swipe-actions" aria-label="${escapeHtml(member.name)}の操作">
+            <button class="swipe-edit" type="button">編集</button>
+            <button class="swipe-delete" type="button">削除</button>
+          </div>
+          <div class="swipe-content member-content">
+            <button class="drag-handle" type="button" aria-label="${escapeHtml(member.name)}を並び替える"><span class="drag-handle-lines"></span></button>
+            <span class="member-name-display">${escapeHtml(member.name)}</span>
+            <input class="inline-edit-input member-name-edit" type="text" maxlength="12" value="${escapeHtml(member.name)}" aria-label="${escapeHtml(member.name)}の表示名">
+          </div>
         </div>`).join('')
       : '<p class="empty-message">メンバーはまだ登録されていません</p>';
+    setupSwipeRows();
+    setupMemberDragging();
   }
 
-  function renameSelectedProject() {
+  function saveProjectName() {
     const name = elements.editProjectNameInput.value.trim();
-    if (!name) return showToast('プロジェクト名を入力してください');
-    selectedProject().name = name;
-    saveState('プロジェクト名を変更しました');
-    render();
+    if (!name) {
+      elements.editProjectNameInput.value = selectedProject().name;
+      showToast('プロジェクト名を入力してください');
+    } else if (name !== selectedProject().name) {
+      selectedProject().name = name;
+      saveState('プロジェクト名を変更しました');
+    }
+    elements.projectNameDisplay.textContent = selectedProject().name;
+    elements.projectItem.classList.remove('is-editing');
+    renderProjectOptions();
+    renderCalendar();
+  }
+
+  function editProjectName() {
+    elements.projectItem.classList.remove('is-open');
+    elements.projectItem.classList.add('is-editing');
+    elements.editProjectNameInput.focus();
+    elements.editProjectNameInput.select();
   }
 
   function deleteSelectedProject() {
@@ -330,26 +354,140 @@
     render();
   }
 
-  function updateMember(memberId, action) {
+  function saveMemberName(row) {
     const project = selectedProject();
+    const memberId = row.dataset.memberId;
     const index = project.members.findIndex(member => member.id === memberId);
     if (index < 0) return;
-
-    if (action === 'save') {
-      const row = elements.memberList.querySelector(`[data-member-id="${CSS.escape(memberId)}"]`);
-      const name = row.querySelector('.member-name-edit').value.trim();
-      if (!name) return showToast('表示する名前を入力してください');
-      if (project.members.some(member => member.id !== memberId && member.name === name)) return showToast('同じ名前が登録されています');
+    const input = row.querySelector('.member-name-edit');
+    const name = input.value.trim();
+    if (!name) {
+      input.value = project.members[index].name;
+      showToast('表示する名前を入力してください');
+    } else if (project.members.some(member => member.id !== memberId && member.name === name)) {
+      input.value = project.members[index].name;
+      showToast('同じ名前が登録されています');
+    } else if (name !== project.members[index].name) {
       project.members[index].name = name;
       saveState('メンバー名を変更しました');
-    } else {
-      const nextIndex = action === 'up' ? index - 1 : index + 1;
-      if (nextIndex < 0 || nextIndex >= project.members.length) return;
-      [project.members[index], project.members[nextIndex]] = [project.members[nextIndex], project.members[index]];
-      saveState('メンバーの順番を変更しました');
     }
+    row.querySelector('.member-name-display').textContent = project.members[index].name;
+    row.classList.remove('is-editing');
+    renderCalendar();
+  }
+
+  function editMemberName(row) {
+    row.classList.remove('is-open');
+    row.classList.add('is-editing');
+    const input = row.querySelector('.member-name-edit');
+    input.focus();
+    input.select();
+  }
+
+  function deleteMember(memberId) {
+    const project = selectedProject();
+    const member = project.members.find(item => item.id === memberId);
+    if (!member || !confirm(`「${member.name}」を削除しますか？\n登録済みの勤務情報からも削除されます`)) return;
+    project.members = project.members.filter(item => item.id !== memberId);
+    Object.keys(project.shifts).forEach(key => {
+      project.shifts[key] = project.shifts[key].filter(item => item.memberId !== memberId);
+      if (project.shifts[key].length === 0) delete project.shifts[key];
+    });
+    saveState('メンバーを削除しました');
     renderSettings();
     renderCalendar();
+  }
+
+  function closeSwipeRows(except = null) {
+    document.querySelectorAll('.swipe-row.is-open').forEach(row => {
+      if (row !== except) row.classList.remove('is-open');
+    });
+    openSwipeRow = except;
+  }
+
+  function setupSwipeRows() {
+    document.querySelectorAll('.swipe-row').forEach(row => {
+      const content = row.querySelector('.swipe-content');
+      if (!content || content.dataset.swipeReady) return;
+      content.dataset.swipeReady = 'true';
+      let startX = 0;
+      let startY = 0;
+      let dragging = false;
+
+      content.addEventListener('pointerdown', event => {
+        if (event.target.closest('.drag-handle') || event.target.closest('input')) return;
+        startX = event.clientX;
+        startY = event.clientY;
+        dragging = true;
+        content.style.transition = 'none';
+        content.setPointerCapture(event.pointerId);
+        closeSwipeRows(row.classList.contains('is-open') ? row : null);
+      });
+      content.addEventListener('pointermove', event => {
+        if (!dragging) return;
+        const dx = event.clientX - startX;
+        const dy = event.clientY - startY;
+        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) return;
+        const base = row.classList.contains('is-open') ? -116 : 0;
+        const offset = Math.max(-116, Math.min(0, base + dx));
+        content.style.transform = `translateX(${offset}px)`;
+      });
+      const finish = event => {
+        if (!dragging) return;
+        dragging = false;
+        const dx = event.clientX - startX;
+        content.style.transition = '';
+        content.style.transform = '';
+        if (dx < -38) {
+          closeSwipeRows(row);
+          row.classList.add('is-open');
+        } else if (dx > 28) {
+          row.classList.remove('is-open');
+          closeSwipeRows();
+        }
+      };
+      content.addEventListener('pointerup', finish);
+      content.addEventListener('pointercancel', () => {
+        dragging = false;
+        content.style.transition = '';
+        content.style.transform = '';
+      });
+    });
+  }
+
+  function setupMemberDragging() {
+    elements.memberList.querySelectorAll('.drag-handle').forEach(handle => {
+      handle.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        closeSwipeRows();
+        const row = handle.closest('.member-item');
+        row.classList.add('is-dragging');
+        handle.setPointerCapture(event.pointerId);
+
+        const move = moveEvent => {
+          const target = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest('.member-item');
+          if (!target || target === row || target.parentElement !== elements.memberList) return;
+          const rect = target.getBoundingClientRect();
+          if (moveEvent.clientY < rect.top + rect.height / 2) target.before(row);
+          else target.after(row);
+        };
+        const finish = () => {
+          handle.removeEventListener('pointermove', move);
+          handle.removeEventListener('pointerup', finish);
+          handle.removeEventListener('pointercancel', finish);
+          row.classList.remove('is-dragging');
+          const project = selectedProject();
+          const memberMap = new Map(project.members.map(member => [member.id, member]));
+          project.members = [...elements.memberList.querySelectorAll('.member-item')].map(item => memberMap.get(item.dataset.memberId));
+          saveState('メンバーの順番を変更しました');
+          renderSettings();
+          renderCalendar();
+        };
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', finish);
+        handle.addEventListener('pointercancel', finish);
+      });
+    });
   }
 
   function addProject() {
@@ -441,15 +579,34 @@
   elements.settingsProjectSelect.addEventListener('change', event => setProject(event.target.value));
   elements.openSettings.addEventListener('click', () => { renderSettings(); elements.settingsDialog.showModal(); });
   elements.addProject.addEventListener('click', addProject);
-  elements.renameProject.addEventListener('click', renameSelectedProject);
   elements.deleteProject.addEventListener('click', deleteSelectedProject);
+  elements.projectItem.querySelector('.swipe-edit').addEventListener('click', editProjectName);
+  elements.editProjectNameInput.addEventListener('blur', saveProjectName);
+  elements.editProjectNameInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter') { event.preventDefault(); event.target.blur(); }
+    if (event.key === 'Escape') {
+      event.target.value = selectedProject().name;
+      event.target.blur();
+    }
+  });
   elements.addMember.addEventListener('click', addMember);
   elements.memberList.addEventListener('click', event => {
     const row = event.target.closest('.member-item');
     if (!row) return;
-    if (event.target.closest('.member-save')) updateMember(row.dataset.memberId, 'save');
-    if (event.target.closest('.member-up')) updateMember(row.dataset.memberId, 'up');
-    if (event.target.closest('.member-down')) updateMember(row.dataset.memberId, 'down');
+    if (event.target.closest('.swipe-edit')) editMemberName(row);
+    if (event.target.closest('.swipe-delete')) deleteMember(row.dataset.memberId);
+  });
+  elements.memberList.addEventListener('focusout', event => {
+    if (event.target.matches('.member-name-edit')) saveMemberName(event.target.closest('.member-item'));
+  });
+  elements.memberList.addEventListener('keydown', event => {
+    if (!event.target.matches('.member-name-edit')) return;
+    if (event.key === 'Enter') { event.preventDefault(); event.target.blur(); }
+    if (event.key === 'Escape') {
+      const member = selectedProject().members.find(item => item.id === event.target.closest('.member-item').dataset.memberId);
+      if (member) event.target.value = member.name;
+      event.target.blur();
+    }
   });
   elements.projectNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addProject(); } });
   elements.memberNameInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addMember(); } });
@@ -464,6 +621,9 @@
 
   [elements.dayDialog, elements.settingsDialog].forEach(dialog => {
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+  });
+  elements.settingsDialog.addEventListener('pointerdown', event => {
+    if (!event.target.closest('.swipe-row')) closeSwipeRows();
   });
 
   render();

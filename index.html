@@ -39,9 +39,18 @@
         <p class="eyebrow">SHIFT CALENDAR</p>
         <h1>シフトカレンダー</h1>
       </div>
-      <button id="openSettings" class="icon-button" type="button" aria-label="プロジェクトとメンバーの設定">
-        <svg><use href="#icon-settings"/></svg>
-      </button>
+      <div class="header-actions">
+        <button id="backupButton" class="icon-button" type="button" aria-label="バックアップを保存" title="バックアップを保存">
+          <svg><use href="#icon-upload"/></svg>
+        </button>
+        <button id="restoreButton" class="icon-button" type="button" aria-label="バックアップから復元" title="バックアップから復元">
+          <svg><use href="#icon-history"/></svg>
+        </button>
+        <button id="openSettings" class="icon-button" type="button" aria-label="プロジェクトとメンバーの設定" title="設定">
+          <svg><use href="#icon-settings"/></svg>
+        </button>
+      </div>
+      <input id="restoreInput" type="file" accept="application/json,.json" hidden>
     </header>
 
     <section class="project-bar edit-only" aria-label="プロジェクト選択">
@@ -66,16 +75,6 @@
         <span class="sun-text">日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat-text">土</span>
       </div>
       <div id="calendarGrid" class="calendar-grid"></div>
-    </section>
-
-    <section class="toolbar edit-only" aria-label="データ管理">
-      <button id="backupButton" class="tool-button" type="button">
-        <svg><use href="#icon-upload"/></svg><span>保存</span>
-      </button>
-      <button id="restoreButton" class="tool-button" type="button">
-        <svg><use href="#icon-history"/></svg><span>復元</span>
-      </button>
-      <input id="restoreInput" type="file" accept="application/json,.json" hidden>
     </section>
 
     <section class="share-footer share-only" hidden>
@@ -134,13 +133,19 @@
       </header>
 
       <div class="settings-section">
-        <label for="settingsProjectSelect">プロジェクト</label>
+        <label for="settingsProjectSelect">プロジェクトを選択</label>
         <select id="settingsProjectSelect"></select>
-        <div class="project-edit-form">
-          <input id="editProjectNameInput" type="text" maxlength="30" aria-label="選択中のプロジェクト名">
-          <button id="renameProject" class="button" type="button">変更</button>
-          <button id="deleteProject" class="button button-danger" type="button">削除</button>
+        <div id="projectItem" class="swipe-row project-item">
+          <div class="swipe-actions" aria-label="プロジェクトの操作">
+            <button class="swipe-edit" type="button">編集</button>
+            <button id="deleteProject" class="swipe-delete" type="button">削除</button>
+          </div>
+          <div class="swipe-content project-content">
+            <span id="projectNameDisplay" class="project-name-display"></span>
+            <input id="editProjectNameInput" class="inline-edit-input" type="text" maxlength="30" aria-label="選択中のプロジェクト名">
+          </div>
         </div>
+        <p class="helper swipe-helper">左にスワイプすると編集・削除できます</p>
         <label class="new-project-label" for="projectNameInput">新しいプロジェクト</label>
         <div class="inline-form">
           <input id="projectNameInput" type="text" maxlength="30" placeholder="新しいプロジェクト名">
@@ -156,6 +161,7 @@
           <button id="addMember" class="button button-primary" type="button">登録</button>
         </div>
         <p class="helper">登録した名前が、そのままカレンダーに表示されます</p>
+        <p class="helper">二本線を上下にドラッグすると並び替え、行を左にスワイプすると編集・削除できます</p>
       </div>
       <button class="button button-block" value="cancel">完了</button>
     </form>
