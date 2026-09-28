@@ -13,7 +13,8 @@
     settingsDialog: $('#settingsDialog'), openSettings: $('#openSettings'), projectNameInput: $('#projectNameInput'),
     projectItem: $('#projectItem'), projectNameDisplay: $('#projectNameDisplay'), editProjectNameInput: $('#editProjectNameInput'), deleteProject: $('#deleteProject'),
     addProject: $('#addProject'), memberList: $('#memberList'), memberNameInput: $('#memberNameInput'), addMember: $('#addMember'),
-    openShare: $('#openShare'), closeShare: $('#closeShare'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
+    toggleWorkdayMode: $('#toggleWorkdayMode'), workdayHint: $('#workdayHint'),
+    openShare: $('#openShare'), closeShare: $('#closeShare'), saveShareImage: $('#saveShareImage'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
     backupButton: $('#backupButton'), restoreButton: $('#restoreButton'), restoreInput: $('#restoreInput'), toast: $('#toast')
   };
 
@@ -22,6 +23,7 @@
   let viewDate = new Date(now.getFullYear(), now.getMonth(), 1);
   let selectedDateKey = null;
   let shareMode = false;
+  let workdayMode = false;
   let toastTimer = null;
   let openSwipeRow = null;
 
@@ -35,7 +37,7 @@
       version: 1,
       selectedProjectId: projectId,
       updatedAt: new Date().toISOString(),
-      projects: [{ id: projectId, name: 'プロジェクトA', members: [], shifts: {} }]
+      projects: [{ id: projectId, name: 'プロジェクトA', members: [], shifts: {}, workdays: {} }]
     };
   }
 
@@ -46,7 +48,8 @@
       id: String(project.id || uid('project')),
       name: String(project.name || '名称未設定'),
       members: Array.isArray(project.members) ? project.members.map(member => ({ id: String(member.id || uid('member')), name: String(member.name || '') })).filter(member => member.name) : [],
-      shifts: project.shifts && typeof project.shifts === 'object' ? project.shifts : {}
+      shifts: project.shifts && typeof project.shifts === 'object' ? project.shifts : {},
+      workdays: project.workdays && typeof project.workdays === 'object' ? project.workdays : {}
     }));
     if (!value.projects.some(project => project.id === value.selectedProjectId)) value.selectedProjectId = value.projects[0].id;
     return value;
@@ -198,6 +201,7 @@
       if (!outside && dow === 0) classes.push('is-sunday');
       if (!outside && dow === 6) classes.push('is-saturday');
       if (!outside && holidays.has(key)) classes.push('is-holiday');
+      if (!outside && project.workdays[key]) classes.push('is-workday');
       if (!outside && isToday) classes.push('is-today');
 
       const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
@@ -207,12 +211,16 @@
       const visible = validAssignments.slice(0, 3);
       const entries = visible.map(item => `<span class="shift-entry">${iconForSlot(item.slot)}<span class="shift-name">${escapeHtml(memberMap.get(item.memberId))}</span></span>`).join('');
       const more = validAssignments.length > 3 ? `<span class="more-count">ほか${validAssignments.length - 3}名</span>` : '';
-      const aria = `${month + 1}月${rawDay}日${validAssignments.length ? `、${validAssignments.map(item => `${memberMap.get(item.memberId)} ${SLOT_LABELS[item.slot]}`).join('、')}` : ''}`;
-      cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${outside ? '' : key}" ${outside || shareMode ? 'disabled' : ''} aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span>${entries}${more}</button>`);
+      const aria = `${month + 1}月${rawDay}日${!outside && project.workdays[key] ? '、勤務日' : ''}${validAssignments.length ? `、${validAssignments.map(item => `${memberMap.get(item.memberId)} ${SLOT_LABELS[item.slot]}`).join('、')}` : ''}`;
+      const pressed = workdayMode && !outside ? ` aria-pressed="${project.workdays[key] ? 'true' : 'false'}"` : '';
+      cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${outside ? '' : key}" ${outside || shareMode ? 'disabled' : ''}${pressed} aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span>${entries}${more}</button>`);
     }
     elements.calendarGrid.innerHTML = cells.join('');
     elements.calendarGrid.querySelectorAll('[data-date]').forEach(button => {
-      if (button.dataset.date) button.addEventListener('click', () => openDay(button.dataset.date));
+      if (button.dataset.date) button.addEventListener('click', () => {
+        if (workdayMode) toggleWorkday(button.dataset.date);
+        else openDay(button.dataset.date);
+      });
     });
     updateShareHeader();
   }
@@ -221,6 +229,24 @@
     selectedDateKey = key;
     renderDayDialog();
     elements.dayDialog.showModal();
+  }
+
+  function toggleWorkday(key) {
+    const project = selectedProject();
+    if (project.workdays[key]) delete project.workdays[key];
+    else project.workdays[key] = true;
+    saveState();
+    renderCalendar();
+  }
+
+  function setWorkdayMode(enabled) {
+    workdayMode = enabled;
+    elements.app.classList.toggle('workday-mode', enabled);
+    elements.toggleWorkdayMode.textContent = enabled ? '設定完了' : '勤務日設定';
+    elements.toggleWorkdayMode.setAttribute('aria-pressed', String(enabled));
+    elements.workdayHint.hidden = !enabled;
+    elements.openShare.disabled = enabled;
+    renderCalendar();
   }
 
   function renderDayDialog() {
@@ -311,9 +337,9 @@
             <button class="swipe-delete" type="button">削除</button>
           </div>
           <div class="swipe-content member-content">
-            <button class="drag-handle" type="button" aria-label="${escapeHtml(member.name)}を並び替える"><span class="drag-handle-lines"></span></button>
             <span class="member-name-display">${escapeHtml(member.name)}</span>
             <input class="inline-edit-input member-name-edit" type="text" maxlength="12" value="${escapeHtml(member.name)}" aria-label="${escapeHtml(member.name)}の表示名">
+            <button class="drag-handle" type="button" aria-label="${escapeHtml(member.name)}を並び替える"><span class="drag-handle-lines"></span></button>
           </div>
         </div>`).join('')
       : '<p class="empty-message">メンバーはまだ登録されていません</p>';
@@ -493,7 +519,7 @@
   function addProject() {
     const name = elements.projectNameInput.value.trim();
     if (!name) return showToast('プロジェクト名を入力してください');
-    const project = { id: uid('project'), name, members: [], shifts: {} };
+    const project = { id: uid('project'), name, members: [], shifts: {}, workdays: {} };
     state.projects.push(project);
     state.selectedProjectId = project.id;
     elements.projectNameInput.value = '';
@@ -519,6 +545,7 @@
   }
 
   function toggleShare(enabled) {
+    if (enabled && workdayMode) setWorkdayMode(false);
     shareMode = enabled;
     elements.app.classList.toggle('share-mode', enabled);
     document.querySelectorAll('.edit-only').forEach(node => { node.hidden = enabled; });
@@ -531,8 +558,198 @@
     const project = selectedProject();
     elements.shareTitle.textContent = `${viewDate.getFullYear()}年${viewDate.getMonth() + 1}月 シフト表`;
     const updated = new Date(state.updatedAt);
-    const formatted = `${updated.getMonth() + 1}月${updated.getDate()}日 ${String(updated.getHours()).padStart(2,'0')}:${String(updated.getMinutes()).padStart(2,'0')}`;
+    const formatted = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日 ${String(updated.getHours()).padStart(2,'0')}:${String(updated.getMinutes()).padStart(2,'0')}`;
     elements.shareMeta.textContent = `${project.name}　最終更新 ${formatted}`;
+  }
+
+  function fitCanvasText(context, value, maxWidth) {
+    const text = String(value);
+    if (context.measureText(text).width <= maxWidth) return text;
+    let shortened = text;
+    while (shortened.length > 1 && context.measureText(`${shortened}…`).width > maxWidth) shortened = shortened.slice(0, -1);
+    return `${shortened}…`;
+  }
+
+  function drawSunIcon(context, x, y) {
+    context.save();
+    context.strokeStyle = '#18212b';
+    context.lineWidth = 3;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.arc(x, y, 7, 0, Math.PI * 2);
+    context.stroke();
+    for (let index = 0; index < 8; index++) {
+      const angle = index * Math.PI / 4;
+      context.beginPath();
+      context.moveTo(x + Math.cos(angle) * 11, y + Math.sin(angle) * 11);
+      context.lineTo(x + Math.cos(angle) * 15, y + Math.sin(angle) * 15);
+      context.stroke();
+    }
+    context.restore();
+  }
+
+  function drawSunriseIcon(context, x, y) {
+    context.save();
+    context.strokeStyle = '#18212b';
+    context.lineWidth = 3;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.moveTo(x - 15, y + 7);
+    context.lineTo(x + 15, y + 7);
+    context.moveTo(x - 9, y + 5);
+    context.arc(x, y + 5, 9, Math.PI, Math.PI * 2);
+    context.moveTo(x, y - 14);
+    context.lineTo(x, y - 9);
+    context.moveTo(x - 13, y - 8);
+    context.lineTo(x - 10, y - 5);
+    context.moveTo(x + 13, y - 8);
+    context.lineTo(x + 10, y - 5);
+    context.stroke();
+    context.restore();
+  }
+
+  function createShareCanvas() {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const previousMonthDays = new Date(year, month, 0).getDate();
+    const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
+    const rows = totalCells / 7;
+    const holidays = japaneseHolidayKeys(year);
+    const project = selectedProject();
+    const memberMap = new Map(project.members.map(member => [member.id, member.name]));
+    const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
+    const width = 1400;
+    const side = 70;
+    const gridWidth = width - side * 2;
+    const columnWidth = gridWidth / 7;
+    const headerHeight = 160;
+    const weekdayHeight = 64;
+    const cellHeight = 170;
+    const height = headerHeight + weekdayHeight + rows * cellHeight + 50;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    const fontFamily = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif';
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#18212b';
+    context.font = `600 44px ${fontFamily}`;
+    context.fillText(`${year}年${month + 1}月 シフト表`, width / 2, 52);
+    const updated = new Date(state.updatedAt);
+    const updatedText = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日 ${String(updated.getHours()).padStart(2, '0')}:${String(updated.getMinutes()).padStart(2, '0')}`;
+    context.fillStyle = '#6d7783';
+    context.font = `400 25px ${fontFamily}`;
+    context.fillText(fitCanvasText(context, `${project.name}　最終更新 ${updatedText}`, gridWidth), width / 2, 110);
+
+    const weekdays = ['日','月','火','水','木','金','土'];
+    context.fillStyle = '#f7f8fa';
+    context.fillRect(side, headerHeight, gridWidth, weekdayHeight);
+    context.font = `600 25px ${fontFamily}`;
+    weekdays.forEach((label, index) => {
+      context.fillStyle = index === 0 ? '#ba3d48' : index === 6 ? '#226aa6' : '#6d7783';
+      context.fillText(label, side + columnWidth * index + columnWidth / 2, headerHeight + weekdayHeight / 2);
+    });
+
+    for (let index = 0; index < totalCells; index++) {
+      const rawDay = index - firstDay + 1;
+      let cellDate;
+      let outside = false;
+      if (rawDay < 1) {
+        cellDate = new Date(year, month - 1, previousMonthDays + rawDay);
+        outside = true;
+      } else if (rawDay > daysInMonth) {
+        cellDate = new Date(year, month + 1, rawDay - daysInMonth);
+        outside = true;
+      } else {
+        cellDate = new Date(year, month, rawDay);
+      }
+
+      const key = dateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
+      const dow = cellDate.getDay();
+      const column = index % 7;
+      const row = Math.floor(index / 7);
+      const x = side + column * columnWidth;
+      const y = headerHeight + weekdayHeight + row * cellHeight;
+      if (outside) context.fillStyle = '#f7f8fa';
+      else if (project.workdays[key]) context.fillStyle = '#e9f6ee';
+      else if (dow === 0 || holidays.has(key)) context.fillStyle = '#fff2f3';
+      else if (dow === 6) context.fillStyle = '#eef7ff';
+      else context.fillStyle = '#ffffff';
+      context.fillRect(x, y, columnWidth, cellHeight);
+      if (!outside && project.workdays[key]) {
+        context.fillStyle = '#43845f';
+        context.fillRect(x, y, columnWidth, 6);
+      }
+      context.strokeStyle = '#dce1e7';
+      context.lineWidth = 2;
+      context.strokeRect(x, y, columnWidth, cellHeight);
+
+      context.textAlign = 'left';
+      context.textBaseline = 'top';
+      context.font = `500 27px ${fontFamily}`;
+      context.fillStyle = outside ? '#9ba3ac' : dow === 0 || holidays.has(key) ? '#ba3d48' : dow === 6 ? '#226aa6' : '#6d7783';
+      context.fillText(String(cellDate.getDate()), x + 13, y + 14);
+
+      if (!outside) {
+        const assignments = (project.shifts[key] || [])
+          .filter(item => memberMap.has(item.memberId))
+          .sort((a, b) => memberOrder.get(a.memberId) - memberOrder.get(b.memberId));
+        const visible = assignments.slice(0, 3);
+        context.font = `500 27px ${fontFamily}`;
+        context.fillStyle = '#18212b';
+        visible.forEach((item, assignmentIndex) => {
+          const entryY = y + 65 + assignmentIndex * 34;
+          let nameX = x + 14;
+          if (item.slot === 'am') {
+            drawSunriseIcon(context, x + 25, entryY + 13);
+            nameX = x + 48;
+          } else if (item.slot === 'pm') {
+            drawSunIcon(context, x + 25, entryY + 13);
+            nameX = x + 48;
+          }
+          context.fillStyle = '#18212b';
+          context.fillText(fitCanvasText(context, memberMap.get(item.memberId), x + columnWidth - nameX - 8), nameX, entryY);
+        });
+        if (assignments.length > 3) {
+          context.fillStyle = '#6d7783';
+          context.font = `400 21px ${fontFamily}`;
+          context.fillText(`ほか${assignments.length - 3}名`, x + 14, y + 145);
+        }
+      }
+    }
+    return canvas;
+  }
+
+  async function saveShareImage() {
+    const canvas = createShareCanvas();
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return showToast('画像を作成できませんでした');
+    const projectName = selectedProject().name.replace(/[\\/:*?"<>|]/g, '_');
+    const fileName = `${viewDate.getFullYear()}年${viewDate.getMonth() + 1}月_シフト表_${projectName}.png`;
+    const file = new File([blob], fileName, { type: 'image/png' });
+    try {
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return;
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+    }
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('画像ファイルを保存しました');
   }
 
   function backup() {
@@ -577,7 +794,11 @@
   elements.nextMonth.addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1); renderCalendar(); });
   elements.projectSelect.addEventListener('change', event => setProject(event.target.value));
   elements.settingsProjectSelect.addEventListener('change', event => setProject(event.target.value));
-  elements.openSettings.addEventListener('click', () => { renderSettings(); elements.settingsDialog.showModal(); });
+  elements.openSettings.addEventListener('click', () => {
+    if (workdayMode) setWorkdayMode(false);
+    renderSettings();
+    elements.settingsDialog.showModal();
+  });
   elements.addProject.addEventListener('click', addProject);
   elements.deleteProject.addEventListener('click', deleteSelectedProject);
   elements.projectItem.querySelector('.swipe-edit').addEventListener('click', editProjectName);
@@ -613,8 +834,10 @@
   elements.addAssignment.addEventListener('click', addAssignment);
   elements.prevDay.addEventListener('click', () => moveSelectedDay(-1));
   elements.nextDay.addEventListener('click', () => moveSelectedDay(1));
+  elements.toggleWorkdayMode.addEventListener('click', () => setWorkdayMode(!workdayMode));
   elements.openShare.addEventListener('click', () => toggleShare(true));
   elements.closeShare.addEventListener('click', () => toggleShare(false));
+  elements.saveShareImage.addEventListener('click', saveShareImage);
   elements.backupButton.addEventListener('click', backup);
   elements.restoreButton.addEventListener('click', () => elements.restoreInput.click());
   elements.restoreInput.addEventListener('change', event => restore(event.target.files[0]));

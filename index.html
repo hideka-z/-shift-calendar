@@ -56,7 +56,11 @@
     <section class="project-bar edit-only" aria-label="プロジェクト選択">
       <label class="sr-only" for="projectSelect">プロジェクト</label>
       <select id="projectSelect"></select>
-      <button id="openShare" class="button button-primary" type="button">共有表示</button>
+      <div class="project-actions">
+        <button id="toggleWorkdayMode" class="button" type="button" aria-pressed="false">勤務日設定</button>
+        <button id="openShare" class="button button-primary" type="button">共有表示</button>
+      </div>
+      <p id="workdayHint" class="workday-hint" hidden>勤務日をタップしてください　もう一度タップすると解除できます</p>
     </section>
 
     <section id="shareHeader" class="share-header share-only" hidden>
@@ -78,7 +82,10 @@
     </section>
 
     <section class="share-footer share-only" hidden>
-      <button id="closeShare" class="button button-primary" type="button">編集画面へ戻る</button>
+      <div class="share-footer-actions">
+        <button id="saveShareImage" class="button button-primary" type="button">画像を保存</button>
+        <button id="closeShare" class="button" type="button">編集画面へ戻る</button>
+      </div>
     </section>
   </main>
 
