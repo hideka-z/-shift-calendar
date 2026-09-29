@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8fa">
   <title>シフトカレンダー</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260929-2">
 </head>
 <body>
   <svg class="svg-defs" aria-hidden="true">
@@ -57,10 +57,9 @@
       <label class="sr-only" for="projectSelect">プロジェクト</label>
       <select id="projectSelect"></select>
       <div class="project-actions">
-        <button id="toggleWorkdayMode" class="button" type="button" aria-pressed="false">勤務日設定</button>
+        <button id="toggleWorkdayMode" class="button" type="button">勤務日設定</button>
         <button id="openShare" class="button button-primary" type="button">共有表示</button>
       </div>
-      <p id="workdayHint" class="workday-hint" hidden>勤務日をタップしてください　もう一度タップすると解除できます</p>
     </section>
 
     <section id="shareHeader" class="share-header share-only" hidden>
@@ -88,6 +87,35 @@
       </div>
     </section>
   </main>
+
+  <dialog id="workdayDialog" class="sheet-dialog workday-dialog">
+    <form method="dialog" class="sheet">
+      <header class="sheet-header">
+        <div>
+          <p class="eyebrow">勤務日設定</p>
+          <h2 id="workdayProjectName"></h2>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="閉じる">
+          <svg><use href="#icon-close"/></svg>
+        </button>
+      </header>
+
+      <section class="month-nav workday-month-nav" aria-label="勤務日を設定する月">
+        <button id="workdayPrevMonth" class="month-button" type="button" aria-label="前の月">‹</button>
+        <h2 id="workdayMonthLabel"></h2>
+        <button id="workdayNextMonth" class="month-button" type="button" aria-label="次の月">›</button>
+      </section>
+
+      <p class="workday-instruction">日付をタップすると勤務日の色を付け外しできます</p>
+
+      <section class="calendar-wrap" aria-label="勤務日設定カレンダー">
+        <div class="week-row" aria-hidden="true">
+          <span class="sun-text">日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat-text">土</span>
+        </div>
+        <div id="workdayCalendarGrid" class="calendar-grid workday-calendar-grid"></div>
+      </section>
+    </form>
+  </dialog>
 
   <dialog id="dayDialog" class="sheet-dialog">
     <form method="dialog" class="sheet">
@@ -175,6 +203,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260929-2"></script>
 </body>
 </html>

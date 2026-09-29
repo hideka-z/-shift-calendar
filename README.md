@@ -25,6 +25,8 @@ iPhoneのSafariで使うことを想定した、個人用の月間シフト整�
 
 GitHub Pagesで公開する場合は、このフォルダ内のファイルをリポジトリ直下へ置き、Settings → Pagesから公開してください
 
+`index.html`ではCSSとJavaScriptに更新番号を付け、iPhoneのSafariに古いファイルが残りにくいようにしています
+
 ## データ保存について
 
 入力内容はSafariの `localStorage` に保存され、GitHubへは送信されません

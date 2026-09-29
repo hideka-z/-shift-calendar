@@ -13,7 +13,8 @@
     settingsDialog: $('#settingsDialog'), openSettings: $('#openSettings'), projectNameInput: $('#projectNameInput'),
     projectItem: $('#projectItem'), projectNameDisplay: $('#projectNameDisplay'), editProjectNameInput: $('#editProjectNameInput'), deleteProject: $('#deleteProject'),
     addProject: $('#addProject'), memberList: $('#memberList'), memberNameInput: $('#memberNameInput'), addMember: $('#addMember'),
-    toggleWorkdayMode: $('#toggleWorkdayMode'), workdayHint: $('#workdayHint'),
+    toggleWorkdayMode: $('#toggleWorkdayMode'), workdayDialog: $('#workdayDialog'), workdayProjectName: $('#workdayProjectName'),
+    workdayMonthLabel: $('#workdayMonthLabel'), workdayCalendarGrid: $('#workdayCalendarGrid'), workdayPrevMonth: $('#workdayPrevMonth'), workdayNextMonth: $('#workdayNextMonth'),
     openShare: $('#openShare'), closeShare: $('#closeShare'), saveShareImage: $('#saveShareImage'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
     backupButton: $('#backupButton'), restoreButton: $('#restoreButton'), restoreInput: $('#restoreInput'), toast: $('#toast')
   };
@@ -23,7 +24,6 @@
   let viewDate = new Date(now.getFullYear(), now.getMonth(), 1);
   let selectedDateKey = null;
   let shareMode = false;
-  let workdayMode = false;
   let toastTimer = null;
   let openSwipeRow = null;
 
@@ -151,6 +151,7 @@
     renderProjectOptions();
     renderCalendar();
     if (elements.settingsDialog.open) renderSettings();
+    if (elements.workdayDialog.open) renderWorkdayCalendar();
   }
 
   function renderProjectOptions() {
@@ -212,15 +213,11 @@
       const entries = visible.map(item => `<span class="shift-entry">${iconForSlot(item.slot)}<span class="shift-name">${escapeHtml(memberMap.get(item.memberId))}</span></span>`).join('');
       const more = validAssignments.length > 3 ? `<span class="more-count">ほか${validAssignments.length - 3}名</span>` : '';
       const aria = `${month + 1}月${rawDay}日${!outside && project.workdays[key] ? '、勤務日' : ''}${validAssignments.length ? `、${validAssignments.map(item => `${memberMap.get(item.memberId)} ${SLOT_LABELS[item.slot]}`).join('、')}` : ''}`;
-      const pressed = workdayMode && !outside ? ` aria-pressed="${project.workdays[key] ? 'true' : 'false'}"` : '';
-      cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${outside ? '' : key}" ${outside || shareMode ? 'disabled' : ''}${pressed} aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span>${entries}${more}</button>`);
+      cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${outside ? '' : key}" ${outside || shareMode ? 'disabled' : ''} aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span>${entries}${more}</button>`);
     }
     elements.calendarGrid.innerHTML = cells.join('');
     elements.calendarGrid.querySelectorAll('[data-date]').forEach(button => {
-      if (button.dataset.date) button.addEventListener('click', () => {
-        if (workdayMode) toggleWorkday(button.dataset.date);
-        else openDay(button.dataset.date);
-      });
+      if (button.dataset.date) button.addEventListener('click', () => openDay(button.dataset.date));
     });
     updateShareHeader();
   }
@@ -237,16 +234,55 @@
     else project.workdays[key] = true;
     saveState();
     renderCalendar();
+    renderWorkdayCalendar();
   }
 
-  function setWorkdayMode(enabled) {
-    workdayMode = enabled;
-    elements.app.classList.toggle('workday-mode', enabled);
-    elements.toggleWorkdayMode.textContent = enabled ? '設定完了' : '勤務日設定';
-    elements.toggleWorkdayMode.setAttribute('aria-pressed', String(enabled));
-    elements.workdayHint.hidden = !enabled;
-    elements.openShare.disabled = enabled;
-    renderCalendar();
+  function openWorkdayDialog() {
+    renderWorkdayCalendar();
+    elements.workdayDialog.showModal();
+  }
+
+  function renderWorkdayCalendar() {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const previousMonthDays = new Date(year, month, 0).getDate();
+    const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
+    const holidays = japaneseHolidayKeys(year);
+    const project = selectedProject();
+    const cells = [];
+
+    elements.workdayProjectName.textContent = project.name;
+    elements.workdayMonthLabel.textContent = `${year}年${month + 1}月`;
+    for (let index = 0; index < totalCells; index++) {
+      const rawDay = index - firstDay + 1;
+      let cellDate;
+      let outside = false;
+      if (rawDay < 1) {
+        cellDate = new Date(year, month - 1, previousMonthDays + rawDay);
+        outside = true;
+      } else if (rawDay > daysInMonth) {
+        cellDate = new Date(year, month + 1, rawDay - daysInMonth);
+        outside = true;
+      } else {
+        cellDate = new Date(year, month, rawDay);
+      }
+      const key = dateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
+      const dow = cellDate.getDay();
+      const classes = ['day-cell'];
+      if (outside) classes.push('is-outside');
+      if (!outside && dow === 0) classes.push('is-sunday');
+      if (!outside && dow === 6) classes.push('is-saturday');
+      if (!outside && holidays.has(key)) classes.push('is-holiday');
+      if (!outside && project.workdays[key]) classes.push('is-workday');
+      const aria = `${month + 1}月${rawDay}日${!outside && project.workdays[key] ? '、勤務日' : ''}`;
+      cells.push(`<button class="${classes.join(' ')}" type="button" data-workday-date="${outside ? '' : key}" ${outside ? 'disabled' : ''} aria-pressed="${!outside && project.workdays[key] ? 'true' : 'false'}" aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span></button>`);
+    }
+    elements.workdayCalendarGrid.innerHTML = cells.join('');
+    elements.workdayCalendarGrid.querySelectorAll('[data-workday-date]').forEach(button => {
+      if (button.dataset.workdayDate) button.addEventListener('click', () => toggleWorkday(button.dataset.workdayDate));
+    });
   }
 
   function renderDayDialog() {
@@ -545,7 +581,6 @@
   }
 
   function toggleShare(enabled) {
-    if (enabled && workdayMode) setWorkdayMode(false);
     shareMode = enabled;
     elements.app.classList.toggle('share-mode', enabled);
     document.querySelectorAll('.edit-only').forEach(node => { node.hidden = enabled; });
@@ -558,7 +593,7 @@
     const project = selectedProject();
     elements.shareTitle.textContent = `${viewDate.getFullYear()}年${viewDate.getMonth() + 1}月 シフト表`;
     const updated = new Date(state.updatedAt);
-    const formatted = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日 ${String(updated.getHours()).padStart(2,'0')}:${String(updated.getMinutes()).padStart(2,'0')}`;
+    const formatted = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日`;
     elements.shareMeta.textContent = `${project.name}　最終更新 ${formatted}`;
   }
 
@@ -642,7 +677,7 @@
     context.font = `600 44px ${fontFamily}`;
     context.fillText(`${year}年${month + 1}月 シフト表`, width / 2, 52);
     const updated = new Date(state.updatedAt);
-    const updatedText = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日 ${String(updated.getHours()).padStart(2, '0')}:${String(updated.getMinutes()).padStart(2, '0')}`;
+    const updatedText = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日`;
     context.fillStyle = '#6d7783';
     context.font = `400 25px ${fontFamily}`;
     context.fillText(fitCanvasText(context, `${project.name}　最終更新 ${updatedText}`, gridWidth), width / 2, 110);
@@ -795,7 +830,6 @@
   elements.projectSelect.addEventListener('change', event => setProject(event.target.value));
   elements.settingsProjectSelect.addEventListener('change', event => setProject(event.target.value));
   elements.openSettings.addEventListener('click', () => {
-    if (workdayMode) setWorkdayMode(false);
     renderSettings();
     elements.settingsDialog.showModal();
   });
@@ -834,7 +868,17 @@
   elements.addAssignment.addEventListener('click', addAssignment);
   elements.prevDay.addEventListener('click', () => moveSelectedDay(-1));
   elements.nextDay.addEventListener('click', () => moveSelectedDay(1));
-  elements.toggleWorkdayMode.addEventListener('click', () => setWorkdayMode(!workdayMode));
+  elements.toggleWorkdayMode.addEventListener('click', openWorkdayDialog);
+  elements.workdayPrevMonth.addEventListener('click', () => {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
+    renderCalendar();
+    renderWorkdayCalendar();
+  });
+  elements.workdayNextMonth.addEventListener('click', () => {
+    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+    renderCalendar();
+    renderWorkdayCalendar();
+  });
   elements.openShare.addEventListener('click', () => toggleShare(true));
   elements.closeShare.addEventListener('click', () => toggleShare(false));
   elements.saveShareImage.addEventListener('click', saveShareImage);
@@ -842,7 +886,7 @@
   elements.restoreButton.addEventListener('click', () => elements.restoreInput.click());
   elements.restoreInput.addEventListener('change', event => restore(event.target.files[0]));
 
-  [elements.dayDialog, elements.settingsDialog].forEach(dialog => {
+  [elements.dayDialog, elements.settingsDialog, elements.workdayDialog].forEach(dialog => {
     dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
   });
   elements.settingsDialog.addEventListener('pointerdown', event => {
