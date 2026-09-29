@@ -63,7 +63,7 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 .day-cell.is-saturday { background: var(--sat-bg); }
 .day-cell.is-workday { background: var(--workday-bg); }
 .day-cell.is-today::after { content: ""; position: absolute; inset: 2px; border: 1px solid var(--primary); border-radius: 7px; pointer-events: none; }
-.day-number { display: flex; flex: 0 0 28px; align-items: center; justify-content: center; width: 100%; margin: 0; padding: 1px 0 0; border-bottom: 1px solid #c7ced6; color: var(--muted); background: rgba(255,255,255,.32); font-size: 13px; line-height: normal; text-align: center; }
+.day-number { display: flex; flex: 0 0 20px; align-items: center; justify-content: center; width: 100%; margin: 0; padding: 1px 0 0; border-bottom: 1px solid #c7ced6; color: var(--muted); background: rgba(255,255,255,.32); font-size: 13px; line-height: normal; text-align: center; }
 .is-sunday .day-number, .is-holiday .day-number { color: var(--sun); }
 .is-saturday .day-number { color: var(--sat); }
 .shift-list { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: 0; padding: 4px 3px 5px; }
