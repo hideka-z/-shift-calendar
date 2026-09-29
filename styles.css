@@ -12,8 +12,8 @@
   --sat-bg: #eef7ff;
   --sun: #ba3d48;
   --sun-bg: #fff2f3;
-  --workday: #43845f;
-  --workday-bg: #e9f6ee;
+  --workday: #d2a43a;
+  --workday-bg: #fff4c9;
   --shadow: 0 18px 50px rgba(28, 40, 52, .16);
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
 }
@@ -55,7 +55,7 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 .sun-text { color: var(--sun) !important; }
 .sat-text { color: var(--sat) !important; }
 
-.day-cell { position: relative; min-width: 0; min-height: 79px; padding: 5px 3px 4px; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--text); background: var(--surface); text-align: left; vertical-align: top; }
+.day-cell { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 79px; padding: 0; overflow: hidden; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--text); background: var(--surface); text-align: left; vertical-align: top; }
 .day-cell:nth-child(7n) { border-right: 0; }
 .day-cell:nth-last-child(-n+7) { border-bottom: 0; }
 .day-cell.is-outside { background: var(--surface-soft); }
@@ -63,10 +63,11 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 .day-cell.is-saturday { background: var(--sat-bg); }
 .day-cell.is-workday { background: var(--workday-bg); box-shadow: inset 0 3px 0 var(--workday); }
 .day-cell.is-today::after { content: ""; position: absolute; inset: 2px; border: 1px solid var(--primary); border-radius: 7px; pointer-events: none; }
-.day-number { display: block; margin-bottom: 4px; color: var(--muted); font-size: 13px; line-height: 1; }
+.day-number { display: grid; flex: 0 0 25px; place-items: center; width: 100%; margin: 0; border-bottom: 1px solid #c7ced6; color: var(--muted); background: rgba(255,255,255,.32); font-size: 13px; line-height: 1; text-align: center; }
 .is-sunday .day-number, .is-holiday .day-number { color: var(--sun); }
 .is-saturday .day-number { color: var(--sat); }
-.shift-entry { display: flex; align-items: center; min-width: 0; gap: 2px; margin-top: 2px; font-size: 12px; line-height: 1.25; white-space: nowrap; }
+.shift-list { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: 0; padding: 4px 3px 5px; }
+.shift-entry { display: flex; align-items: center; min-width: 0; gap: 2px; margin: 2px 0; font-size: 12px; line-height: 1.25; white-space: nowrap; }
 .shift-entry svg { flex: 0 0 auto; width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .shift-name { overflow: hidden; text-overflow: ellipsis; }
 .more-count { margin-top: 2px; color: var(--muted); font-size: 9px; }
@@ -89,9 +90,9 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 .day-date-nav h2 { text-align: center; }
 .date-button { width: 44px; height: 44px; padding: 0; border: 0; color: var(--text); background: transparent; font-size: 30px; font-weight: 300; }
 .workday-month-nav { border: 1px solid var(--line); border-bottom: 0; border-radius: 12px 12px 0 0; }
-.workday-instruction { margin: 0; padding: 10px 12px; color: #28583c; background: var(--workday-bg); text-align: center; font-size: 12px; }
-.workday-calendar-grid .day-cell { min-height: 64px; padding: 8px 6px; cursor: pointer; }
-.workday-calendar-grid .day-number { font-size: 14px; }
+.workday-instruction { margin: 0; padding: 10px 12px; color: #6b5319; background: var(--workday-bg); text-align: center; font-size: 12px; }
+.workday-calendar-grid .day-cell { min-height: 64px; cursor: pointer; }
+.workday-calendar-grid .day-number { flex: 1; border-bottom: 0; font-size: 14px; }
 .assignment-row { display: grid; grid-template-columns: 1fr 105px 44px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .assignment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .remove-button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; color: var(--sun); background: transparent; font-size: 24px; }
