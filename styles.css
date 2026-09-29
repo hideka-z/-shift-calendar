@@ -35,7 +35,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .icon-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 12px; color: var(--text); background: var(--surface-soft); }
 .icon-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .header-share-button { min-height: 44px; padding: 0 12px; border: 0; border-radius: 12px; color: var(--text); background: var(--surface-soft); font-size: 13px; font-weight: 600; white-space: nowrap; }
-.share-mode .header-share-button { color: var(--primary-text); background: var(--primary); }
 
 .project-bar { display: grid; grid-template-columns: 1fr; gap: 9px; padding: 0 4px 12px; }
 select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 11px; padding: 9px 11px; color: var(--text); background: var(--surface); font-size: 16px; }
@@ -75,8 +74,6 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 
 .share-header { padding: 6px 2px 12px; text-align: center; }
 .share-header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.share-actions { padding: 0 4px 12px; }
-.share-actions .button { width: 100%; }
 .share-mode { min-height: 0; }
 .share-mode .calendar-wrap { border-radius: 8px; }
 .share-mode .day-cell { min-height: 92px; cursor: default; }
@@ -148,6 +145,6 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 @media print {
   body { padding: 0; background: #fff; }
   .app-shell { width: 100%; padding: 0; box-shadow: none; }
-  .app-header, .edit-only, .share-actions { display: none !important; }
+  .app-header, .edit-only { display: none !important; }
   .share-only { display: block !important; }
 }

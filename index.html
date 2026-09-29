@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8fa">
   <title>シフトカレンダー</title>
-  <link rel="stylesheet" href="styles.css?v=20260929-7">
+  <link rel="stylesheet" href="styles.css?v=20260929-8">
 </head>
 <body>
   <svg class="svg-defs" aria-hidden="true">
@@ -19,6 +19,9 @@
       </symbol>
       <symbol id="icon-upload" viewBox="0 0 24 24">
         <path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>
+      </symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M12 4v12M7 11l5 5 5-5M5 20h14"/>
       </symbol>
       <symbol id="icon-history" viewBox="0 0 24 24">
         <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/>
@@ -40,6 +43,9 @@
         <h1>シフトカレンダー</h1>
       </div>
       <div class="header-actions">
+        <button id="saveShareImage" class="icon-button share-only" type="button" aria-label="画像を保存" title="画像を保存" hidden>
+          <svg><use href="#icon-download"/></svg>
+        </button>
         <button id="openShare" class="header-share-button" type="button" aria-pressed="false">
           <span id="shareToggleLabel">共有表示</span>
         </button>
@@ -52,10 +58,6 @@
     <section class="project-bar edit-only" aria-label="プロジェクト選択">
       <label class="sr-only" for="projectSelect">プロジェクト</label>
       <select id="projectSelect"></select>
-    </section>
-
-    <section class="share-actions share-only" hidden>
-      <button id="saveShareImage" class="button button-primary" type="button">画像を保存</button>
     </section>
 
     <section id="shareHeader" class="share-header share-only" hidden>
@@ -209,6 +211,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260929-7"></script>
+  <script src="app.js?v=20260929-8"></script>
 </body>
 </html>
