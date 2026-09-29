@@ -886,7 +886,10 @@
   elements.addAssignment.addEventListener('click', addAssignment);
   elements.prevDay.addEventListener('click', () => moveSelectedDay(-1));
   elements.nextDay.addEventListener('click', () => moveSelectedDay(1));
-  elements.toggleWorkdayMode.addEventListener('click', openWorkdayDialog);
+  elements.toggleWorkdayMode.addEventListener('click', () => {
+    elements.settingsDialog.close();
+    openWorkdayDialog();
+  });
   elements.workdayPrevMonth.addEventListener('click', () => {
     viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
     renderCalendar();

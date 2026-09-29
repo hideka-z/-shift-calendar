@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8fa">
   <title>シフトカレンダー</title>
-  <link rel="stylesheet" href="styles.css?v=20260929-5">
+  <link rel="stylesheet" href="styles.css?v=20260929-6">
 </head>
 <body>
   <svg class="svg-defs" aria-hidden="true">
@@ -40,24 +40,16 @@
         <h1>シフトカレンダー</h1>
       </div>
       <div class="header-actions">
-        <button id="backupButton" class="icon-button" type="button" aria-label="バックアップを保存" title="バックアップを保存">
-          <svg><use href="#icon-upload"/></svg>
-        </button>
-        <button id="restoreButton" class="icon-button" type="button" aria-label="バックアップから復元" title="バックアップから復元">
-          <svg><use href="#icon-history"/></svg>
-        </button>
-        <button id="openSettings" class="icon-button" type="button" aria-label="プロジェクトとメンバーの設定" title="設定">
+        <button id="openSettings" class="icon-button" type="button" aria-label="詳細設定を開く" title="詳細設定">
           <svg><use href="#icon-settings"/></svg>
         </button>
       </div>
-      <input id="restoreInput" type="file" accept="application/json,.json" hidden>
     </header>
 
     <section class="project-bar edit-only" aria-label="プロジェクト選択">
       <label class="sr-only" for="projectSelect">プロジェクト</label>
       <select id="projectSelect"></select>
       <div class="project-actions">
-        <button id="toggleWorkdayMode" class="button" type="button">勤務日設定</button>
         <button id="openShare" class="button button-primary" type="button">共有表示</button>
       </div>
     </section>
@@ -160,12 +152,28 @@
       <header class="sheet-header">
         <div>
           <p class="eyebrow">設定</p>
-          <h2>プロジェクトとメンバー</h2>
+          <h2>詳細設定</h2>
         </div>
         <button class="icon-button" value="cancel" aria-label="閉じる">
           <svg><use href="#icon-close"/></svg>
         </button>
       </header>
+
+      <div class="settings-quick-actions" aria-label="データと勤務日の設定">
+        <button id="backupButton" class="settings-action-button" type="button">
+          <svg><use href="#icon-upload"/></svg>
+          <span>ダウンロード</span>
+        </button>
+        <button id="restoreButton" class="settings-action-button" type="button">
+          <svg><use href="#icon-history"/></svg>
+          <span>復元</span>
+        </button>
+        <button id="toggleWorkdayMode" class="settings-action-button" type="button">
+          <span class="settings-action-mark" aria-hidden="true">日</span>
+          <span>勤務日設定</span>
+        </button>
+      </div>
+      <input id="restoreInput" type="file" accept="application/json,.json" hidden>
 
       <div class="settings-section">
         <label for="settingsProjectSelect">プロジェクトを選択</label>
@@ -203,6 +211,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260929-5"></script>
+  <script src="app.js?v=20260929-6"></script>
 </body>
 </html>
