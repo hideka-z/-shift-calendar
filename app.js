@@ -15,7 +15,7 @@
     addProject: $('#addProject'), memberList: $('#memberList'), memberNameInput: $('#memberNameInput'), addMember: $('#addMember'),
     toggleWorkdayMode: $('#toggleWorkdayMode'), workdayDialog: $('#workdayDialog'), workdayProjectName: $('#workdayProjectName'),
     workdayMonthLabel: $('#workdayMonthLabel'), workdayCalendarGrid: $('#workdayCalendarGrid'), workdayPrevMonth: $('#workdayPrevMonth'), workdayNextMonth: $('#workdayNextMonth'),
-    openShare: $('#openShare'), closeShare: $('#closeShare'), saveShareImage: $('#saveShareImage'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
+    openShare: $('#openShare'), shareToggleLabel: $('#shareToggleLabel'), saveShareImage: $('#saveShareImage'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
     backupButton: $('#backupButton'), restoreButton: $('#restoreButton'), restoreInput: $('#restoreInput'), toast: $('#toast')
   };
 
@@ -585,6 +585,8 @@
     elements.app.classList.toggle('share-mode', enabled);
     document.querySelectorAll('.edit-only').forEach(node => { node.hidden = enabled; });
     document.querySelectorAll('.share-only').forEach(node => { node.hidden = !enabled; });
+    elements.openShare.setAttribute('aria-pressed', String(enabled));
+    elements.shareToggleLabel.textContent = enabled ? '共有表示終了' : '共有表示';
     renderCalendar();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -900,8 +902,7 @@
     renderCalendar();
     renderWorkdayCalendar();
   });
-  elements.openShare.addEventListener('click', () => toggleShare(true));
-  elements.closeShare.addEventListener('click', () => toggleShare(false));
+  elements.openShare.addEventListener('click', () => toggleShare(!shareMode));
   elements.saveShareImage.addEventListener('click', saveShareImage);
   elements.backupButton.addEventListener('click', backup);
   elements.restoreButton.addEventListener('click', () => elements.restoreInput.click());
