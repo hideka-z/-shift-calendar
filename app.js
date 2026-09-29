@@ -717,13 +717,15 @@
       else if (dow === 6) context.fillStyle = '#eef7ff';
       else context.fillStyle = '#ffffff';
       context.fillRect(x, y, columnWidth, cellHeight);
-      if (!outside && project.workdays[key]) {
-        context.fillStyle = '#d2a43a';
-        context.fillRect(x, y, columnWidth, 6);
-      }
       context.strokeStyle = '#c7ced6';
       context.lineWidth = 2;
       context.strokeRect(x, y, columnWidth, cellHeight);
+
+      context.lineWidth = 4;
+      context.beginPath();
+      context.moveTo(x, y + cellHeight);
+      context.lineTo(x + columnWidth, y + cellHeight);
+      context.stroke();
 
       const dateBandHeight = 44;
       context.strokeStyle = '#c7ced6';
