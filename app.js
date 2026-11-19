@@ -147,6 +147,10 @@
     return holidays;
   }
 
+  function calendarHolidayKeys(year) {
+    return new Set([year - 1, year, year + 1].flatMap(value => [...japaneseHolidayKeys(value)]));
+  }
+
   function render() {
     renderProjectOptions();
     renderCalendar();
@@ -175,7 +179,7 @@
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const previousMonthDays = new Date(year, month, 0).getDate();
     const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
-    const holidays = japaneseHolidayKeys(year);
+    const holidays = calendarHolidayKeys(year);
     const project = selectedProject();
     const memberMap = new Map(project.members.map(member => [member.id, member.name]));
 
@@ -199,21 +203,21 @@
       const isToday = key === dateKey(now.getFullYear(), now.getMonth(), now.getDate());
       const classes = ['day-cell'];
       if (outside) classes.push('is-outside');
-      if (!outside && dow === 0) classes.push('is-sunday');
-      if (!outside && dow === 6) classes.push('is-saturday');
-      if (!outside && holidays.has(key)) classes.push('is-holiday');
-      if (!outside && project.workdays[key]) classes.push('is-workday');
-      if (!outside && isToday) classes.push('is-today');
+      if (dow === 0) classes.push('is-sunday');
+      if (dow === 6) classes.push('is-saturday');
+      if (holidays.has(key)) classes.push('is-holiday');
+      if (project.workdays[key]) classes.push('is-workday');
+      if (isToday) classes.push('is-today');
 
       const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
-      const validAssignments = outside ? [] : (project.shifts[key] || [])
+      const validAssignments = (project.shifts[key] || [])
         .filter(item => memberMap.has(item.memberId))
         .sort((a, b) => memberOrder.get(a.memberId) - memberOrder.get(b.memberId));
       const visible = validAssignments.slice(0, 3);
       const entries = visible.map(item => `<span class="shift-entry">${iconForSlot(item.slot)}<span class="shift-name">${escapeHtml(memberMap.get(item.memberId))}</span></span>`).join('');
       const more = validAssignments.length > 3 ? `<span class="more-count">ほか${validAssignments.length - 3}名</span>` : '';
-      const aria = `${month + 1}月${rawDay}日${!outside && project.workdays[key] ? '、勤務日' : ''}${validAssignments.length ? `、${validAssignments.map(item => `${memberMap.get(item.memberId)} ${SLOT_LABELS[item.slot]}`).join('、')}` : ''}`;
-      cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${outside ? '' : key}" ${outside || shareMode ? 'disabled' : ''} aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span><span class="shift-list">${entries}${more}</span></button>`);
+      const aria = `${cellDate.getFullYear()}年${cellDate.getMonth() + 1}月${cellDate.getDate()}日${project.workdays[key] ? '、勤務日' : ''}${validAssignments.length ? `、${validAssignments.map(item => `${memberMap.get(item.memberId)} ${SLOT_LABELS[item.slot]}`).join('、')}` : ''}`;
+      cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${key}" ${shareMode ? 'disabled' : ''} aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span><span class="shift-list">${entries}${more}</span></button>`);
     }
     elements.calendarGrid.innerHTML = cells.join('');
     elements.calendarGrid.querySelectorAll('[data-date]').forEach(button => {
@@ -249,7 +253,7 @@
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const previousMonthDays = new Date(year, month, 0).getDate();
     const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
-    const holidays = japaneseHolidayKeys(year);
+    const holidays = calendarHolidayKeys(year);
     const project = selectedProject();
     const cells = [];
 
@@ -272,12 +276,12 @@
       const dow = cellDate.getDay();
       const classes = ['day-cell'];
       if (outside) classes.push('is-outside');
-      if (!outside && dow === 0) classes.push('is-sunday');
-      if (!outside && dow === 6) classes.push('is-saturday');
-      if (!outside && holidays.has(key)) classes.push('is-holiday');
-      if (!outside && project.workdays[key]) classes.push('is-workday');
-      const aria = `${month + 1}月${rawDay}日${!outside && project.workdays[key] ? '、勤務日' : ''}`;
-      cells.push(`<button class="${classes.join(' ')}" type="button" data-workday-date="${outside ? '' : key}" ${outside ? 'disabled' : ''} aria-pressed="${!outside && project.workdays[key] ? 'true' : 'false'}" aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span></button>`);
+      if (dow === 0) classes.push('is-sunday');
+      if (dow === 6) classes.push('is-saturday');
+      if (holidays.has(key)) classes.push('is-holiday');
+      if (project.workdays[key]) classes.push('is-workday');
+      const aria = `${cellDate.getFullYear()}年${cellDate.getMonth() + 1}月${cellDate.getDate()}日${project.workdays[key] ? '、勤務日' : ''}`;
+      cells.push(`<button class="${classes.join(' ')}" type="button" data-workday-date="${key}" aria-pressed="${project.workdays[key] ? 'true' : 'false'}" aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span></button>`);
     }
     elements.workdayCalendarGrid.innerHTML = cells.join('');
     elements.workdayCalendarGrid.querySelectorAll('[data-workday-date]').forEach(button => {
@@ -653,7 +657,7 @@
     const previousMonthDays = new Date(year, month, 0).getDate();
     const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
     const rows = totalCells / 7;
-    const holidays = japaneseHolidayKeys(year);
+    const holidays = calendarHolidayKeys(year);
     const project = selectedProject();
     const memberMap = new Map(project.members.map(member => [member.id, member.name]));
     const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
@@ -713,11 +717,10 @@
       const row = Math.floor(index / 7);
       const x = side + column * columnWidth;
       const y = headerHeight + weekdayHeight + row * cellHeight;
-      if (outside) context.fillStyle = '#f7f8fa';
-      else if (project.workdays[key]) context.fillStyle = '#fff4c9';
+      if (project.workdays[key]) context.fillStyle = '#fff4c9';
       else if (dow === 0 || holidays.has(key)) context.fillStyle = '#fff2f3';
       else if (dow === 6) context.fillStyle = '#eef7ff';
-      else context.fillStyle = '#ffffff';
+      else context.fillStyle = outside ? '#f7f8fa' : '#ffffff';
       context.fillRect(x, y, columnWidth, cellHeight);
       context.strokeStyle = '#c7ced6';
       context.lineWidth = 2;
@@ -740,42 +743,40 @@
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.font = `500 27px ${fontFamily}`;
-      context.fillStyle = outside ? '#9ba3ac' : dow === 0 || holidays.has(key) ? '#ba3d48' : dow === 6 ? '#226aa6' : '#6d7783';
+      context.fillStyle = dow === 0 || holidays.has(key) ? '#ba3d48' : dow === 6 ? '#226aa6' : '#6d7783';
       context.fillText(String(cellDate.getDate()), x + columnWidth / 2, y + dateBandHeight / 2);
 
-      if (!outside) {
-        const assignments = (project.shifts[key] || [])
-          .filter(item => memberMap.has(item.memberId))
-          .sort((a, b) => memberOrder.get(a.memberId) - memberOrder.get(b.memberId));
-        const visible = assignments.slice(0, 3);
-        const entryHeight = 34;
-        const moreHeight = assignments.length > 3 ? 27 : 0;
-        const contentTop = y + dateBandHeight;
-        const contentHeight = cellHeight - dateBandHeight;
-        const groupHeight = visible.length * entryHeight + moreHeight;
-        const groupTop = contentTop + Math.max(0, (contentHeight - groupHeight) / 2);
-        context.textAlign = 'left';
-        context.textBaseline = 'middle';
-        context.font = `500 27px ${fontFamily}`;
-        context.fillStyle = '#18212b';
-        visible.forEach((item, assignmentIndex) => {
-          const entryY = groupTop + entryHeight * assignmentIndex + entryHeight / 2;
-          let nameX = x + 14;
-          if (item.slot === 'am') {
-            drawSunriseIcon(context, x + 25, entryY);
-            nameX = x + 48;
-          } else if (item.slot === 'pm') {
-            drawSunIcon(context, x + 25, entryY);
-            nameX = x + 48;
-          }
-          context.fillStyle = '#18212b';
-          context.fillText(fitCanvasText(context, memberMap.get(item.memberId), x + columnWidth - nameX - 8), nameX, entryY);
-        });
-        if (assignments.length > 3) {
-          context.fillStyle = '#6d7783';
-          context.font = `400 21px ${fontFamily}`;
-          context.fillText(`ほか${assignments.length - 3}名`, x + 14, groupTop + visible.length * entryHeight + moreHeight / 2);
+      const assignments = (project.shifts[key] || [])
+        .filter(item => memberMap.has(item.memberId))
+        .sort((a, b) => memberOrder.get(a.memberId) - memberOrder.get(b.memberId));
+      const visible = assignments.slice(0, 3);
+      const entryHeight = 34;
+      const moreHeight = assignments.length > 3 ? 27 : 0;
+      const contentTop = y + dateBandHeight;
+      const contentHeight = cellHeight - dateBandHeight;
+      const groupHeight = visible.length * entryHeight + moreHeight;
+      const groupTop = contentTop + Math.max(0, (contentHeight - groupHeight) / 2);
+      context.textAlign = 'left';
+      context.textBaseline = 'middle';
+      context.font = `500 27px ${fontFamily}`;
+      context.fillStyle = '#18212b';
+      visible.forEach((item, assignmentIndex) => {
+        const entryY = groupTop + entryHeight * assignmentIndex + entryHeight / 2;
+        let nameX = x + 14;
+        if (item.slot === 'am') {
+          drawSunriseIcon(context, x + 25, entryY);
+          nameX = x + 48;
+        } else if (item.slot === 'pm') {
+          drawSunIcon(context, x + 25, entryY);
+          nameX = x + 48;
         }
+        context.fillStyle = '#18212b';
+        context.fillText(fitCanvasText(context, memberMap.get(item.memberId), x + columnWidth - nameX - 8), nameX, entryY);
+      });
+      if (assignments.length > 3) {
+        context.fillStyle = '#6d7783';
+        context.font = `400 21px ${fontFamily}`;
+        context.fillText(`ほか${assignments.length - 3}名`, x + 14, groupTop + visible.length * entryHeight + moreHeight / 2);
       }
     }
     return canvas;
