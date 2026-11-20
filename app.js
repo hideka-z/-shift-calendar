@@ -7,25 +7,124 @@
 
   const elements = {
     app: $('#app'), projectSelect: $('#projectSelect'), settingsProjectSelect: $('#settingsProjectSelect'),
-    monthLabel: $('#monthLabel'), calendarGrid: $('#calendarGrid'), prevMonth: $('#prevMonth'), nextMonth: $('#nextMonth'),
+    monthLabel: $('#monthLabel'), calendarGrid: $('#calendarGrid'), calendarViewport: $('#calendarViewport'), prevMonth: $('#prevMonth'), nextMonth: $('#nextMonth'),
     dayDialog: $('#dayDialog'), selectedDateLabel: $('#selectedDateLabel'), prevDay: $('#prevDay'), nextDay: $('#nextDay'), assignmentList: $('#assignmentList'),
     noAssignments: $('#noAssignments'), memberSelect: $('#memberSelect'), slotSelect: $('#slotSelect'), addAssignment: $('#addAssignment'),
     settingsDialog: $('#settingsDialog'), openSettings: $('#openSettings'), projectNameInput: $('#projectNameInput'),
     projectItem: $('#projectItem'), projectNameDisplay: $('#projectNameDisplay'), editProjectNameInput: $('#editProjectNameInput'), deleteProject: $('#deleteProject'),
     addProject: $('#addProject'), memberList: $('#memberList'), memberNameInput: $('#memberNameInput'), addMember: $('#addMember'),
     toggleWorkdayMode: $('#toggleWorkdayMode'), workdayDialog: $('#workdayDialog'), workdayProjectName: $('#workdayProjectName'),
-    workdayMonthLabel: $('#workdayMonthLabel'), workdayCalendarGrid: $('#workdayCalendarGrid'), workdayPrevMonth: $('#workdayPrevMonth'), workdayNextMonth: $('#workdayNextMonth'),
+    workdayMonthLabel: $('#workdayMonthLabel'), workdayCalendarGrid: $('#workdayCalendarGrid'), workdayViewport: $('#workdayViewport'), workdayPrevMonth: $('#workdayPrevMonth'), workdayNextMonth: $('#workdayNextMonth'),
     openShare: $('#openShare'), shareToggleLabel: $('#shareToggleLabel'), saveShareImage: $('#saveShareImage'), shareHeader: $('#shareHeader'), shareTitle: $('#shareTitle'), shareMeta: $('#shareMeta'),
     backupButton: $('#backupButton'), restoreButton: $('#restoreButton'), restoreInput: $('#restoreInput'), toast: $('#toast')
   };
 
   const now = new Date();
   let state = loadState();
-  let viewDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const initialDate = new Date(now.getFullYear(), now.getMonth(), 1);
   let selectedDateKey = null;
   let shareMode = false;
   let toastTimer = null;
   let openSwipeRow = null;
+  const calendarRange = createScrollRange(initialDate);
+  const workdayRange = createScrollRange(initialDate);
+  let shareStartDate = null;
+  let savedCalendarPosition = null;
+  let savedPageScroll = 0;
+  const holidayCache = new Map();
+
+  function addDays(date, days) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+  }
+
+  function startOfWeek(date) {
+    return addDays(date, -date.getDay());
+  }
+
+  function daysBetween(start, end) {
+    const stamp = date => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+    return (stamp(end) - stamp(start)) / 86400000;
+  }
+
+  function keyForDate(date) {
+    return dateKey(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  function createScrollRange(date) {
+    return {
+      start: addDays(startOfWeek(date), -26 * 7), weeks: 78, rowHeight: 92,
+      pendingPosition: { week: startOfWeek(date), fraction: 0 }
+    };
+  }
+
+  function scrollPosition(viewport, range) {
+    const offset = Math.max(0, viewport.scrollTop) / range.rowHeight;
+    const wholeWeeks = Math.floor(offset + 0.000001);
+    return { week: addDays(range.start, wholeWeeks * 7), fraction: Math.max(0, offset - wholeWeeks) };
+  }
+
+  function restoreScrollPosition(viewport, range, position) {
+    viewport.scrollTop = (daysBetween(range.start, position.week) / 7 + position.fraction) * range.rowHeight;
+  }
+
+  function layoutCalendar(viewport, grid, range, position) {
+    range.rowHeight = Math.max(44, viewport.clientHeight / 5);
+    grid.style.setProperty('--calendar-cell-height', `${range.rowHeight}px`);
+    // Use the browser's actual subpixel row height so offsets do not drift
+    range.rowHeight = grid.firstElementChild?.getBoundingClientRect().height || range.rowHeight;
+    restoreScrollPosition(viewport, range, position);
+  }
+
+  function periodLabel(start, end) {
+    const first = `${start.getFullYear()}年${start.getMonth() + 1}月${start.getDate()}日`;
+    const last = `${start.getFullYear() === end.getFullYear() ? '' : `${end.getFullYear()}年`}${end.getMonth() + 1}月${end.getDate()}日`;
+    return `${first}〜${last}`;
+  }
+
+  function updateMonthLabel(viewport, range, label) {
+    const first = scrollPosition(viewport, range).week;
+    const last = addDays(first, 34);
+    const from = `${first.getFullYear()}年${first.getMonth() + 1}月`;
+    label.textContent = first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()
+      ? from : `${from}〜${first.getFullYear() === last.getFullYear() ? '' : `${last.getFullYear()}年`}${last.getMonth() + 1}月`;
+  }
+
+  function scrollToDate(date, workday = false) {
+    const range = workday ? workdayRange : calendarRange;
+    const week = startOfWeek(date);
+    range.start = addDays(week, -26 * 7);
+    range.pendingPosition = { week, fraction: 0 };
+    if (workday) renderWorkdayCalendar(); else renderCalendar();
+  }
+
+  function moveCalendarMonth(amount, workday = false) {
+    const range = workday ? workdayRange : calendarRange;
+    const viewport = workday ? elements.workdayViewport : elements.calendarViewport;
+    const topWeek = scrollPosition(viewport, range).week;
+    const date = addDays(topWeek, 3);
+    let target = new Date(date.getFullYear(), date.getMonth() + amount, 1);
+    if (daysBetween(topWeek, startOfWeek(target)) * amount <= 0) {
+      target = new Date(target.getFullYear(), target.getMonth() + amount, 1);
+    }
+    scrollToDate(target, workday);
+  }
+
+  function handleCalendarScroll(workday = false) {
+    if (!workday && shareMode) return;
+    if (workday && !elements.workdayDialog.open) return;
+    const range = workday ? workdayRange : calendarRange;
+    const viewport = workday ? elements.workdayViewport : elements.calendarViewport;
+    const label = workday ? elements.workdayMonthLabel : elements.monthLabel;
+    const position = scrollPosition(viewport, range);
+    const index = daysBetween(range.start, position.week) / 7;
+    // Recenter a bounded buffer without changing the visible date or offset
+    if (index < 6 || index > range.weeks - 11) {
+      range.start = addDays(position.week, -26 * 7);
+      range.pendingPosition = position;
+      if (workday) renderWorkdayCalendar(); else renderCalendar();
+    }
+    updateMonthLabel(viewport, range, label);
+  }
 
   function uid(prefix) {
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -148,7 +247,17 @@
   }
 
   function calendarHolidayKeys(year) {
-    return new Set([year - 1, year, year + 1].flatMap(value => [...japaneseHolidayKeys(value)]));
+    if (!holidayCache.has(year)) holidayCache.set(year, japaneseHolidayKeys(year));
+    return holidayCache.get(year);
+  }
+
+  function holidaysForDates(start, count) {
+    const holidays = new Set();
+    const end = addDays(start, count - 1);
+    for (let year = start.getFullYear(); year <= end.getFullYear(); year++) {
+      calendarHolidayKeys(year).forEach(key => holidays.add(key));
+    }
+    return holidays;
   }
 
   function render() {
@@ -172,44 +281,22 @@
     return '';
   }
 
-  function renderCalendar() {
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const previousMonthDays = new Date(year, month, 0).getDate();
-    const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
-    const holidays = calendarHolidayKeys(year);
+  function dayCells(start, count, workday = false) {
+    const holidays = holidaysForDates(start, count);
     const project = selectedProject();
     const memberMap = new Map(project.members.map(member => [member.id, member.name]));
-
-    elements.monthLabel.textContent = `${year}年${month + 1}月`;
+    const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
     const cells = [];
-    for (let index = 0; index < totalCells; index++) {
-      const rawDay = index - firstDay + 1;
-      let cellDate;
-      let outside = false;
-      if (rawDay < 1) {
-        cellDate = new Date(year, month - 1, previousMonthDays + rawDay);
-        outside = true;
-      } else if (rawDay > daysInMonth) {
-        cellDate = new Date(year, month + 1, rawDay - daysInMonth);
-        outside = true;
-      } else {
-        cellDate = new Date(year, month, rawDay);
-      }
-      const key = dateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
+    for (let index = 0; index < count; index++) {
+      const cellDate = addDays(start, index);
+      const key = keyForDate(cellDate);
       const dow = cellDate.getDay();
-      const isToday = key === dateKey(now.getFullYear(), now.getMonth(), now.getDate());
       const classes = ['day-cell'];
-      if (outside) classes.push('is-outside');
       if (dow === 0) classes.push('is-sunday');
       if (dow === 6) classes.push('is-saturday');
       if (holidays.has(key)) classes.push('is-holiday');
       if (project.workdays[key]) classes.push('is-workday');
-      if (isToday) classes.push('is-today');
-
-      const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
+      if (key === keyForDate(now)) classes.push('is-today');
       const validAssignments = (project.shifts[key] || [])
         .filter(item => memberMap.has(item.memberId))
         .sort((a, b) => memberOrder.get(a.memberId) - memberOrder.get(b.memberId));
@@ -217,12 +304,29 @@
       const entries = visible.map(item => `<span class="shift-entry">${iconForSlot(item.slot)}<span class="shift-name">${escapeHtml(memberMap.get(item.memberId))}</span></span>`).join('');
       const more = validAssignments.length > 3 ? `<span class="more-count">ほか${validAssignments.length - 3}名</span>` : '';
       const aria = `${cellDate.getFullYear()}年${cellDate.getMonth() + 1}月${cellDate.getDate()}日${project.workdays[key] ? '、勤務日' : ''}${validAssignments.length ? `、${validAssignments.map(item => `${memberMap.get(item.memberId)} ${SLOT_LABELS[item.slot]}`).join('、')}` : ''}`;
-      cells.push(`<button class="${classes.join(' ')}" type="button" data-date="${key}" ${shareMode ? 'disabled' : ''} aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span><span class="shift-list">${entries}${more}</span></button>`);
+      const number = cellDate.getDate() === 1 ? `${cellDate.getMonth() + 1}/1` : cellDate.getDate();
+      const attributes = workday
+        ? `data-workday-date="${key}" aria-pressed="${project.workdays[key] ? 'true' : 'false'}"`
+        : `data-date="${key}" ${shareMode ? 'disabled' : ''}`;
+      cells.push(`<button class="${classes.join(' ')}" type="button" ${attributes} aria-label="${escapeHtml(aria)}"><span class="day-number">${number}</span>${workday ? '' : `<span class="shift-list">${entries}${more}</span>`}</button>`);
     }
-    elements.calendarGrid.innerHTML = cells.join('');
+    return cells.join('');
+  }
+
+  function renderCalendar() {
+    const position = calendarRange.pendingPosition || scrollPosition(elements.calendarViewport, calendarRange);
+    const start = shareMode ? shareStartDate : calendarRange.start;
+    elements.calendarGrid.innerHTML = dayCells(start, shareMode ? 35 : calendarRange.weeks * 7);
     elements.calendarGrid.querySelectorAll('[data-date]').forEach(button => {
-      if (button.dataset.date) button.addEventListener('click', () => openDay(button.dataset.date));
+      if (!shareMode) button.addEventListener('click', () => openDay(button.dataset.date));
     });
+    if (shareMode) {
+      elements.calendarViewport.scrollTop = 0;
+    } else {
+      layoutCalendar(elements.calendarViewport, elements.calendarGrid, calendarRange, position);
+      calendarRange.pendingPosition = null;
+      updateMonthLabel(elements.calendarViewport, calendarRange, elements.monthLabel);
+    }
     updateShareHeader();
   }
 
@@ -242,51 +346,22 @@
   }
 
   function openWorkdayDialog() {
-    renderWorkdayCalendar();
     elements.workdayDialog.showModal();
+    scrollToDate(scrollPosition(elements.calendarViewport, calendarRange).week, true);
   }
 
   function renderWorkdayCalendar() {
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const previousMonthDays = new Date(year, month, 0).getDate();
-    const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
-    const holidays = calendarHolidayKeys(year);
-    const project = selectedProject();
-    const cells = [];
-
-    elements.workdayProjectName.textContent = project.name;
-    elements.workdayMonthLabel.textContent = `${year}年${month + 1}月`;
-    for (let index = 0; index < totalCells; index++) {
-      const rawDay = index - firstDay + 1;
-      let cellDate;
-      let outside = false;
-      if (rawDay < 1) {
-        cellDate = new Date(year, month - 1, previousMonthDays + rawDay);
-        outside = true;
-      } else if (rawDay > daysInMonth) {
-        cellDate = new Date(year, month + 1, rawDay - daysInMonth);
-        outside = true;
-      } else {
-        cellDate = new Date(year, month, rawDay);
-      }
-      const key = dateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
-      const dow = cellDate.getDay();
-      const classes = ['day-cell'];
-      if (outside) classes.push('is-outside');
-      if (dow === 0) classes.push('is-sunday');
-      if (dow === 6) classes.push('is-saturday');
-      if (holidays.has(key)) classes.push('is-holiday');
-      if (project.workdays[key]) classes.push('is-workday');
-      const aria = `${cellDate.getFullYear()}年${cellDate.getMonth() + 1}月${cellDate.getDate()}日${project.workdays[key] ? '、勤務日' : ''}`;
-      cells.push(`<button class="${classes.join(' ')}" type="button" data-workday-date="${key}" aria-pressed="${project.workdays[key] ? 'true' : 'false'}" aria-label="${escapeHtml(aria)}"><span class="day-number">${cellDate.getDate()}</span></button>`);
-    }
-    elements.workdayCalendarGrid.innerHTML = cells.join('');
+    const position = workdayRange.pendingPosition || scrollPosition(elements.workdayViewport, workdayRange);
+    elements.workdayProjectName.textContent = selectedProject().name;
+    elements.workdayCalendarGrid.innerHTML = dayCells(workdayRange.start, workdayRange.weeks * 7, true);
     elements.workdayCalendarGrid.querySelectorAll('[data-workday-date]').forEach(button => {
-      if (button.dataset.workdayDate) button.addEventListener('click', () => toggleWorkday(button.dataset.workdayDate));
+      button.addEventListener('click', () => toggleWorkday(button.dataset.workdayDate));
     });
+    if (elements.workdayDialog.open) {
+      layoutCalendar(elements.workdayViewport, elements.workdayCalendarGrid, workdayRange, position);
+      workdayRange.pendingPosition = null;
+      updateMonthLabel(elements.workdayViewport, workdayRange, elements.workdayMonthLabel);
+    }
   }
 
   function renderDayDialog() {
@@ -355,9 +430,8 @@
     const current = new Date(`${selectedDateKey}T00:00:00`);
     const next = new Date(current.getFullYear(), current.getMonth(), current.getDate() + amount);
     selectedDateKey = dateKey(next.getFullYear(), next.getMonth(), next.getDate());
-    if (viewDate.getFullYear() !== next.getFullYear() || viewDate.getMonth() !== next.getMonth()) {
-      viewDate = new Date(next.getFullYear(), next.getMonth(), 1);
-    }
+    const topWeek = scrollPosition(elements.calendarViewport, calendarRange).week;
+    if (daysBetween(topWeek, next) < 0 || daysBetween(topWeek, next) > 34) scrollToDate(next);
     renderDayDialog();
     renderCalendar();
   }
@@ -585,6 +659,14 @@
   }
 
   function toggleShare(enabled) {
+    if (enabled === shareMode) return;
+    if (enabled) {
+      savedCalendarPosition = scrollPosition(elements.calendarViewport, calendarRange);
+      savedPageScroll = window.scrollY;
+      shareStartDate = savedCalendarPosition.week;
+    } else {
+      calendarRange.pendingPosition = savedCalendarPosition;
+    }
     shareMode = enabled;
     elements.app.classList.toggle('share-mode', enabled);
     document.querySelectorAll('.edit-only').forEach(node => { node.hidden = enabled; });
@@ -592,12 +674,13 @@
     elements.openShare.setAttribute('aria-pressed', String(enabled));
     elements.shareToggleLabel.textContent = enabled ? '共有表示終了' : '共有表示';
     renderCalendar();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: enabled ? 0 : savedPageScroll, behavior: 'auto' });
   }
 
   function updateShareHeader() {
     const project = selectedProject();
-    elements.shareTitle.textContent = `${viewDate.getFullYear()}年${viewDate.getMonth() + 1}月 シフト表`;
+    const start = shareStartDate || scrollPosition(elements.calendarViewport, calendarRange).week;
+    elements.shareTitle.textContent = `${periodLabel(start, addDays(start, 34))} シフト表`;
     const updated = new Date(state.updatedAt);
     const formatted = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日`;
     elements.shareMeta.textContent = `${project.name}　最終更新 ${formatted}`;
@@ -650,14 +733,10 @@
   }
 
   function createShareCanvas() {
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const previousMonthDays = new Date(year, month, 0).getDate();
-    const totalCells = firstDay + daysInMonth <= 35 ? 35 : 42;
-    const rows = totalCells / 7;
-    const holidays = calendarHolidayKeys(year);
+    const start = shareMode ? shareStartDate : scrollPosition(elements.calendarViewport, calendarRange).week;
+    const totalCells = 35;
+    const rows = 5;
+    const holidays = holidaysForDates(start, totalCells);
     const project = selectedProject();
     const memberMap = new Map(project.members.map(member => [member.id, member.name]));
     const memberOrder = new Map(project.members.map((member, index) => [member.id, index]));
@@ -681,7 +760,7 @@
     context.textBaseline = 'middle';
     context.fillStyle = '#18212b';
     context.font = `600 44px ${fontFamily}`;
-    context.fillText(`${year}年${month + 1}月 シフト表`, width / 2, 52);
+    context.fillText(fitCanvasText(context, `${periodLabel(start, addDays(start, 34))} シフト表`, gridWidth), width / 2, 52);
     const updated = new Date(state.updatedAt);
     const updatedText = `${updated.getFullYear()}年${updated.getMonth() + 1}月${updated.getDate()}日`;
     context.fillStyle = '#6d7783';
@@ -698,18 +777,7 @@
     });
 
     for (let index = 0; index < totalCells; index++) {
-      const rawDay = index - firstDay + 1;
-      let cellDate;
-      let outside = false;
-      if (rawDay < 1) {
-        cellDate = new Date(year, month - 1, previousMonthDays + rawDay);
-        outside = true;
-      } else if (rawDay > daysInMonth) {
-        cellDate = new Date(year, month + 1, rawDay - daysInMonth);
-        outside = true;
-      } else {
-        cellDate = new Date(year, month, rawDay);
-      }
+      const cellDate = addDays(start, index);
 
       const key = dateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
       const dow = cellDate.getDay();
@@ -720,7 +788,7 @@
       if (project.workdays[key]) context.fillStyle = '#fff4c9';
       else if (dow === 0 || holidays.has(key)) context.fillStyle = '#fff2f3';
       else if (dow === 6) context.fillStyle = '#eef7ff';
-      else context.fillStyle = outside ? '#f7f8fa' : '#ffffff';
+      else context.fillStyle = '#ffffff';
       context.fillRect(x, y, columnWidth, cellHeight);
       context.strokeStyle = '#c7ced6';
       context.lineWidth = 2;
@@ -744,7 +812,8 @@
       context.textBaseline = 'middle';
       context.font = `500 27px ${fontFamily}`;
       context.fillStyle = dow === 0 || holidays.has(key) ? '#ba3d48' : dow === 6 ? '#226aa6' : '#6d7783';
-      context.fillText(String(cellDate.getDate()), x + columnWidth / 2, y + dateBandHeight / 2);
+      const number = cellDate.getDate() === 1 ? `${cellDate.getMonth() + 1}/1` : String(cellDate.getDate());
+      context.fillText(number, x + columnWidth / 2, y + dateBandHeight / 2);
 
       const assignments = (project.shifts[key] || [])
         .filter(item => memberMap.has(item.memberId))
@@ -787,7 +856,9 @@
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!blob) return showToast('画像を作成できませんでした');
     const projectName = selectedProject().name.replace(/[\\/:*?"<>|]/g, '_');
-    const fileName = `${viewDate.getFullYear()}年${viewDate.getMonth() + 1}月_シフト表_${projectName}.png`;
+    const start = shareStartDate || scrollPosition(elements.calendarViewport, calendarRange).week;
+    const end = addDays(start, 34);
+    const fileName = `${keyForDate(start)}_${keyForDate(end)}_シフト表_${projectName}.png`;
     const file = new File([blob], fileName, { type: 'image/png' });
     try {
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
@@ -846,8 +917,8 @@
     toastTimer = setTimeout(() => elements.toast.classList.remove('show'), 2200);
   }
 
-  elements.prevMonth.addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1); renderCalendar(); });
-  elements.nextMonth.addEventListener('click', () => { viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1); renderCalendar(); });
+  elements.prevMonth.addEventListener('click', () => moveCalendarMonth(-1));
+  elements.nextMonth.addEventListener('click', () => moveCalendarMonth(1));
   elements.projectSelect.addEventListener('change', event => setProject(event.target.value));
   elements.settingsProjectSelect.addEventListener('change', event => setProject(event.target.value));
   elements.openSettings.addEventListener('click', () => {
@@ -893,16 +964,8 @@
     elements.settingsDialog.close();
     openWorkdayDialog();
   });
-  elements.workdayPrevMonth.addEventListener('click', () => {
-    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
-    renderCalendar();
-    renderWorkdayCalendar();
-  });
-  elements.workdayNextMonth.addEventListener('click', () => {
-    viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
-    renderCalendar();
-    renderWorkdayCalendar();
-  });
+  elements.workdayPrevMonth.addEventListener('click', () => moveCalendarMonth(-1, true));
+  elements.workdayNextMonth.addEventListener('click', () => moveCalendarMonth(1, true));
   elements.openShare.addEventListener('click', () => toggleShare(!shareMode));
   elements.saveShareImage.addEventListener('click', saveShareImage);
   elements.backupButton.addEventListener('click', backup);
@@ -916,5 +979,35 @@
     if (!event.target.closest('.swipe-row')) closeSwipeRows();
   });
 
+  [false, true].forEach(workday => {
+    const viewport = workday ? elements.workdayViewport : elements.calendarViewport;
+    let frame = null;
+    viewport.addEventListener('scroll', () => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        handleCalendarScroll(workday);
+      });
+    }, { passive: true });
+  });
+
+  function resizeCalendars() {
+    if (!shareMode) {
+      const position = scrollPosition(elements.calendarViewport, calendarRange);
+      layoutCalendar(elements.calendarViewport, elements.calendarGrid, calendarRange, position);
+    }
+    if (elements.workdayDialog.open) {
+      const position = scrollPosition(elements.workdayViewport, workdayRange);
+      layoutCalendar(elements.workdayViewport, elements.workdayCalendarGrid, workdayRange, position);
+    }
+  }
+
   render();
+  if ('ResizeObserver' in window) {
+    const observer = new ResizeObserver(resizeCalendars);
+    observer.observe(elements.calendarViewport);
+    observer.observe(elements.workdayViewport);
+  } else {
+    window.addEventListener('resize', resizeCalendars);
+  }
 })();

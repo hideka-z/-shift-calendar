@@ -28,7 +28,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-.app-shell { width: min(100%, 520px); min-height: 100dvh; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 12px max(22px, env(safe-area-inset-bottom)); background: var(--surface); }
+.app-shell { display: flex; flex-direction: column; width: min(100%, 520px); height: 100dvh; min-height: 520px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 12px max(22px, env(safe-area-inset-bottom)); background: var(--surface); }
+.app-shell > :not(.continuous-calendar) { flex-shrink: 0; }
 .app-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 4px 14px; }
 .app-header h1, .share-header h1 { margin: 1px 0 0; font-size: 22px; font-weight: 600; }
 .eyebrow { margin: 0; color: var(--muted); font-size: 10px; letter-spacing: .12em; }
@@ -45,11 +46,17 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 
 .month-nav { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; border-top: 1px solid var(--line); }
 .month-nav h2 { margin: 0; padding: 15px 0; text-align: center; font-size: 18px; font-weight: 600; }
+#monthLabel, #workdayMonthLabel { font-size: clamp(13px, 3.8vw, 16px); white-space: nowrap; }
 .month-button { min-width: 44px; min-height: 44px; border: 0; color: var(--text); background: transparent; font-size: 30px; font-weight: 300; }
 .share-mode .month-nav { grid-template-columns: 1fr; border-top: 0; }
 .share-mode .month-nav h2 { display: none; }
 
 .calendar-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.continuous-calendar { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.continuous-calendar .week-row { flex-shrink: 0; }
+.calendar-viewport { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overflow-anchor: none; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.calendar-viewport .day-cell { height: var(--calendar-cell-height, 92px); min-height: 0; }
+.scroll-hint { margin: 0 2px 8px; color: var(--muted); font-size: 12px; }
 .week-row, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .week-row { border-bottom: 2px solid #c7ced6; background: var(--surface-soft); }
 .week-row span { padding: 8px 0; text-align: center; color: var(--muted); font-size: 12px; }
@@ -60,13 +67,13 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 .day-cell:nth-child(7n) { border-right: 0; }
 .day-cell:nth-last-child(-n+7) { border-bottom: 0; }
 .day-cell.is-outside { background: var(--surface-soft); }
-.day-cell.is-sunday, .day-cell.is-holiday { background: var(--sun-bg); }
 .day-cell.is-saturday { background: var(--sat-bg); }
+.day-cell.is-sunday, .day-cell.is-holiday { background: var(--sun-bg); }
 .day-cell.is-workday { background: var(--workday-bg); }
 .day-cell.is-today::after { content: ""; position: absolute; inset: 2px; border: 1px solid var(--primary); border-radius: 7px; pointer-events: none; }
 .day-number { display: flex; flex: 0 0 15px; align-items: center; justify-content: center; width: 100%; margin: 0; padding: 0; border-bottom: 1px solid #c7ced6; color: var(--muted); background: rgba(255,255,255,.32); font-size: 13px; line-height: 1; text-align: center; }
-.is-sunday .day-number, .is-holiday .day-number { color: var(--sun); }
 .is-saturday .day-number { color: var(--sat); }
+.is-sunday .day-number, .is-holiday .day-number { color: var(--sun); }
 .shift-list { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: 0; padding: 2px 3px 3px; }
 .shift-entry { display: flex; align-items: center; min-width: 0; gap: 2px; margin: 1px 0; font-size: 12px; line-height: 1.25; white-space: nowrap; }
 .shift-entry svg { flex: 0 0 auto; width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -75,7 +82,10 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 
 .share-header { padding: 6px 2px 12px; text-align: center; }
 .share-header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.share-mode { min-height: 0; }
+.share-mode { height: auto; min-height: 0; }
+.share-mode .continuous-calendar { flex: none; }
+.share-mode .calendar-viewport { flex: none; overflow: visible; }
+.share-mode .calendar-viewport .day-cell { height: 92px; }
 .share-mode .calendar-wrap { border-radius: 8px; }
 .share-mode .day-cell { min-height: 92px; cursor: default; }
 
@@ -96,6 +106,9 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 .workday-instruction { margin: 0; padding: 10px 12px; color: #6b5319; background: var(--workday-bg); text-align: center; font-size: 12px; }
 .workday-calendar-grid .day-cell { min-height: 64px; cursor: pointer; }
 .workday-calendar-grid .day-number { flex: 1; border-bottom: 0; font-size: 14px; }
+.workday-dialog .sheet { display: flex; flex-direction: column; height: min(760px, calc(100dvh - 16px)); }
+.workday-dialog .sheet > :not(.continuous-calendar) { flex-shrink: 0; }
+.workday-calendar-grid .day-cell { min-height: 0; }
 .assignment-row { display: grid; grid-template-columns: 1fr 105px 44px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .assignment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .remove-button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; color: var(--sun); background: transparent; font-size: 24px; }
@@ -138,9 +151,15 @@ select, input { width: 100%; min-height: 44px; border: 1px solid var(--line); bo
 
 @media (min-width: 560px) {
   body { padding: 28px 0; }
-  .app-shell { min-height: auto; border-radius: 22px; box-shadow: var(--shadow); }
+  .app-shell { height: calc(100dvh - 56px); min-height: 520px; border-radius: 22px; box-shadow: var(--shadow); }
+  .app-shell.share-mode { height: auto; min-height: 0; }
   .sheet-dialog { margin-bottom: auto; border-radius: 20px; }
   .sheet { border-radius: 20px; }
+}
+
+@media (max-width: 359px) {
+  .app-header h1 { font-size: 19px; }
+  .header-share-button { padding-right: 9px; padding-left: 9px; }
 }
 
 @media print {
